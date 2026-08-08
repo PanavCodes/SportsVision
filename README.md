@@ -47,11 +47,24 @@ CourtVision/
 
 ## 🚀 Usage
 
-**Requirements:**
-- Python 3.10+
-- `pip install -r requirements.txt`
+**Installation & Setup:**
+The easiest way to install the project and its dependencies is to use the provided setup scripts. This will automatically create a virtual environment (`venv`) and install everything from `requirements.txt`.
+
+*On Windows:*
+```cmd
+setup.bat
+```
+
+*On Linux / macOS:*
+```bash
+chmod +x setup.sh
+./setup.sh
+```
 
 **Running the Pipeline:**
+Make sure you activate your environment first!
+*Windows:* `venv\Scripts\activate`
+*Linux/macOS:* `source venv/bin/activate`
 ```bash
 python main_pipeline.py data/videos/fiba_first_half.mp4
 ```
