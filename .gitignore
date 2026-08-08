@@ -1,0 +1,83 @@
+# Environments
+basketball_env/
+venv/
+env/
+ENV/
+.env
+.venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# YOLOv8 & PyTorch
+runs/
+*.pt
+*.engine
+*.onnx
+*.weights
+*.pb
+*.h5
+*.hdf5
+*.ckpt
+
+# Explicitly keep the specific models we NEED in the models directory (override the *.pt rule)
+!models/basketball_best.pt
+!models/basketball_best-2.pt
+!models/basketball_best-3.pt
+
+# Data & Media
+data/videos/*.mp4
+data/videos/*.avi
+data/videos/*.mov
+data/output/*.mp4
+data/output/*.avi
+data/output/*.json
+data/output/*.jpg
+data/output/*.png
+*.mp4
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Kluster
+.kluster/
+
