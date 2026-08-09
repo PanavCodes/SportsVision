@@ -45,8 +45,8 @@ runs/
 !models/basketball_best.pt
 !models/basketball_best-2.pt
 !models/basketball_best-3.pt
-!models/yolov8m.pt
-!external/AI_BasketBall_Analysis_v1-main/models/court_keypoint_detector.pt
+
+!models/court_keypoint_detector.pt
 
 # Data & Media
 data/videos/*.mp4

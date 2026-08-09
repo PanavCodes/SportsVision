@@ -11,9 +11,9 @@ An end-to-end computer vision and spatial analytics pipeline for analyzing baske
 2. **Player Segmentation (SAM2)** ✂️
    - Generates pixel-perfect segmentation masks for players on the court using Meta's Segment Anything Model 2 (SAM2).
 
-3. **Dynamic Team Classification (SigLIP + UMAP)** 👕
-   - Employs SigLIP (Vision Transformer) for robust zero-shot feature extraction of player crops.
-   - Clusters player embeddings via UMAP and K-Means to automatically discover and assign Team 1 vs Team 2 colors dynamically without hardcoding.
+3. **Dynamic Team Classification (Pixel K-Means)** 👕
+   - Employs Pixel-level K-Means clustering to isolate dominant jersey colors.
+   - Dynamically discovers and assigns Team 1 vs Team 2 colors without hardcoding, perfectly separating opposing teams even during extreme broadcast zooms where UMAP struggles.
 
 4. **Player Identification (EasyOCR)** 🔢
    - Reads jersey numbers in real-time utilizing EasyOCR to persist player identities throughout the broadcast.

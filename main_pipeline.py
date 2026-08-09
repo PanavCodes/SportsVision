@@ -271,7 +271,7 @@ def main():
             video_frames = list(executor.map(draw_single_frame, range(len(video_frames))))
 
         # --- [Stage H] Tactical Minimap Overlay ---
-        output_frames = mapper.render_tactical_view(video_frames, player_tracks, ball_tracks)
+        output_frames = mapper.render_tactical_view(video_frames, player_tracks, ball_tracks, ball_possession)
 
         # --- [Stage I] Shot Detection & Write Output ---
         shot_detector.update_batch(output_frames, ball_tracks, player_tracks)

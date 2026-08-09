@@ -5,12 +5,9 @@ import numpy as np
 
 import config
 
-if config.REPO1_DIR not in sys.path:
-    sys.path.insert(0, config.REPO1_DIR)
-
-from tactical_view.tactical_view import TacticalViewConverter
-from Court_keypoint_detection.court_keypoint_detection import CourtKeypointDetector
-from drawers.tactical_view_drawer import TacticalViewDrawer
+from core.minimap.tactical_view import TacticalViewConverter
+from core.minimap.court_keypoint_detection import CourtKeypointDetector
+from core.minimap.tactical_view_drawer import TacticalViewDrawer
 
 class CourtVisionMapper:
     """
@@ -118,7 +115,7 @@ class CourtVisionMapper:
         
         return player_tracks, ball_tracks
 
-    def render_tactical_view(self, output_video_frames: list, player_tracks: list, ball_tracks: list):
+    def render_tactical_view(self, output_video_frames: list, player_tracks: list, ball_tracks: list, ball_possession: list = None):
         if self.keypoint_detector is None or self.keypoints_per_frame is None:
             return output_video_frames
             
@@ -130,7 +127,10 @@ class CourtVisionMapper:
                     assignment_dict[player_id] = data['team']
             player_assignment.append(assignment_dict)
             
-        ball_aquisition = [None] * len(output_video_frames)
+        if ball_possession is None:
+            ball_aquisition = [None] * len(output_video_frames)
+        else:
+            ball_aquisition = ball_possession
         
         return self.drawer.draw(
             output_video_frames,

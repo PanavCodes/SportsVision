@@ -5,10 +5,7 @@ import numpy as np
 import cv2
 from copy import deepcopy
 from .homography import Homography
-
-folder_path = pathlib.Path(__file__).parent.resolve()
-sys.path.append(os.path.join(folder_path, "../"))
-from utils import get_foot_position, measure_distance
+from .bbox_utils import get_foot_position, measure_distance
 
 class TacticalViewConverter:
     """

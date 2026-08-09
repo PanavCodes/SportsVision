@@ -9,12 +9,7 @@ PROJECTS_ROOT = os.path.dirname(WORKSPACE_ROOT)
 os.environ["HF_HOME"] = os.path.join(WORKSPACE_ROOT, "models", "hf_cache")
 os.environ["EASYOCR_MODULE_PATH"] = os.path.join(WORKSPACE_ROOT, "models", "easyocr")
 
-# Extracted Repositories Paths (Migrated into external/)
-EXTERNAL_DIR = os.path.join(WORKSPACE_ROOT, "external")
-REPO1_DIR = os.path.join(EXTERNAL_DIR, "AI_BasketBall_Analysis_v1-main")
-REPO2_DIR = os.path.join(EXTERNAL_DIR, "Basketball-Shot-Detection-main")
-REPO3_DIR = os.path.join(EXTERNAL_DIR, "Finetuned-YOLO-and-Supervision-Basketball-Video-Tracker-main")
-REPO4_DIR = os.path.join(EXTERNAL_DIR, "Automated-Basketball-Highlights-with-Deep-Learning-main")
+
 
 # Output and Data
 OUTPUT_DIR = os.path.join(WORKSPACE_ROOT, "data", "output")
@@ -37,23 +32,21 @@ USE_SAM2 = True
 SAM_MODEL_PATH = "sam2.1_s.pt" # Ultralytics will auto-download this to the root if not present
 
 # --- Player Identification (Phase 2) ---
-USE_SIGLIP = True
+USE_SIGLIP = False
 USE_OCR = True
 
 # --- Team Classifier (Repo 3 - K-Means) ---
 TEAM_1_COLOR = (255, 0, 0) # Red
 TEAM_2_COLOR = (0, 255, 0) # Green
 
-# --- Court Mapper (Repo 1 - Homography) ---
-COURT_IMAGE_PATH = os.path.join(REPO1_DIR, "tactical_view", "court_images", "basketball_court.png")
-COURT_MODEL_PATH = os.path.join(REPO1_DIR, "models", "court_keypoint_detector.pt")
+# --- Court Mapper (Minimap) ---
+COURT_IMAGE_PATH = os.path.join(WORKSPACE_ROOT, "data", "basketball_court.png")
+COURT_MODEL_PATH = os.path.join(WORKSPACE_ROOT, "models", "court_keypoint_detector.pt")
 
-# --- Shot Detector (Repo 2 / Repo 4) ---
-# We will use Repo 2's geometric approach as the base, supplemented by Repo 4's ResNet50 if weights exist.
-RESNET_MODEL_PATH = os.path.join(REPO4_DIR, "models", "resnet50_cropped.pth")
+# --- Shot Detector (Geometric) ---
 YOLO_GENERAL_MODEL = os.path.join(WORKSPACE_ROOT, "models", "yolov8l.pt")
 
-# --- Highlights (Repo 4) ---
+# --- Highlights ---
 HIGHLIGHT_CLIP_BEFORE_SEC = 4
 HIGHLIGHT_CLIP_AFTER_SEC = 2
 

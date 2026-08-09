@@ -1,7 +1,6 @@
 from ultralytics import YOLO
 import sys
-sys.path.append('../')
-from utils import read_stub, save_stub
+from .stubs_utils import read_stub, save_stub
 import numpy as np
 
 class CourtKeypointDetector:

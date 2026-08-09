@@ -104,8 +104,8 @@ class CourtVisionDetector:
                 if getattr(config, 'USE_RF_DETR', False):
                     # RF-DETR native inference
                     detections = self.player_model.predict(frame, threshold=config.PLAYER_CONFIDENCE)
-                    # Filter to only persons (class 0)
-                    detections = detections[detections.class_id == 0]
+                    # Filter to only persons (for RF-DETR, COCO class_id 1 is usually person)
+                    detections = detections[detections.class_id == 1]
                     # Update tracker
                     tracked_detections = self.tracker.update_with_detections(detections)
                     

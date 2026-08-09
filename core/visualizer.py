@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import threading
 
 import config
 
@@ -34,6 +35,7 @@ class CourtVisionVisualizer:
         self.total_team2_interceptions = 0
         self.global_frame_counter = 0
         self.total_frames = 0
+        self.draw_lock = threading.Lock()
         
         try:
             from sports.common.ball import BallAnnotator
@@ -274,7 +276,8 @@ class CourtVisionVisualizer:
                     xyxy=np.array([bbox]),
                     confidence=np.array([conf])
                 )
-                frame = self.ball_annotator.annotate(frame, detections)
+                with self.draw_lock:
+                    frame = self.ball_annotator.annotate(frame, detections)
             else:
                 x_center = int((bbox[0] + bbox[2]) / 2)
                 y_center = int((bbox[1] + bbox[3]) / 2)

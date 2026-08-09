@@ -22,7 +22,7 @@ else:
 
 # 2. SAM2 (Segmentation)
 sam2_url = "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_s.pt"
-sam2_path = config.SAM2_MODEL_PATH
+sam2_path = config.SAM_MODEL_PATH
 if not os.path.exists(sam2_path):
     print(f"Downloading SAM2.1_s to {sam2_path}...")
     urllib.request.urlretrieve(sam2_url, sam2_path)
@@ -32,8 +32,8 @@ else:
 # 3. SigLIP (Team Classification)
 print("Downloading/Verifying SigLIP (HuggingFace)...")
 from transformers import AutoModel, AutoProcessor
-AutoProcessor.from_pretrained(config.SIGLIP_MODEL_ID)
-AutoModel.from_pretrained(config.SIGLIP_MODEL_ID)
+AutoProcessor.from_pretrained("google/siglip-base-patch16-224")
+AutoModel.from_pretrained("google/siglip-base-patch16-224")
 
 # 4. EasyOCR (Player ID)
 print("Downloading/Verifying EasyOCR...")
