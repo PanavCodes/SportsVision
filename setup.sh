@@ -25,6 +25,14 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
+echo "[4/4] Downloading Model Weights..."
+python3 setup_models.py
+if [ $? -ne 0 ]; then
+    echo "[ERROR] Failed to download models."
+    exit 1
+fi
+echo ""
+
 echo "========================================================"
 echo "Setup Complete! "
 echo "========================================================"

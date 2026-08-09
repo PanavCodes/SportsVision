@@ -53,14 +53,23 @@ CourtVision/
 ## 🚀 Usage & Portability
 
 **Installation & Setup:**
-The provided setup scripts automatically create a virtual environment (`venv`), install dependencies, and download all necessary AI models (YOLO, SAM2, SigLIP, EasyOCR) straight into the `models/` directory for 100% offline portability.
 
-*On Windows:*
-```cmd
-setup.bat
+### 1. Clone & Install
+```bash
+git clone https://github.com/PanavCodes/CourtVision.git
+cd CourtVision
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-*On Linux / macOS:*
+### 2. Download Offline Models
+CourtVision requires several large AI models (YOLOv8, SAM2, SigLIP, etc.). Download them automatically by running:
+```bash
+python setup_models.py
+```
+
+### 3. Run Pipeline
 ```bash
 chmod +x setup.sh
 ./setup.sh
