@@ -83,3 +83,10 @@ desktop.ini
 # Kluster
 .kluster/
 
+# Temporary / Scratch
+scratch/
+test_phase*.jpg
+
+# Large model caches (Downloaded by setup_models.py instead)
+models/hf_cache/
+models/easyocr/

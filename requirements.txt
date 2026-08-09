@@ -26,3 +26,9 @@ scipy>=1.11.0
 
 # Image handling (Repo #1 TeamAssigner)
 Pillow>=10.0.0
+
+# Phase 2 & 3 Additions
+umap-learn
+easyocr
+rfdetr
+git+https://github.com/roboflow/sports.git

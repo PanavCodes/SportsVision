@@ -94,9 +94,21 @@ def main():
     BATCH_SIZE = args.batch_size or config.BATCH_SIZE
     FRAME_SKIP = args.frame_skip or config.FRAME_SKIP
 
-    # 2. Initialize All Engines
     print("\n[2/8] Initializing AI Engines...")
     detector = CourtVisionDetector()
+    
+    if getattr(config, 'USE_SAM2', False):
+        from core.segmentation import PlayerSegmenter
+        segmenter = PlayerSegmenter()
+    else:
+        segmenter = None
+        
+    if getattr(config, 'USE_OCR', False):
+        from core.player_id import CourtVisionPlayerID
+        player_id_model = CourtVisionPlayerID()
+    else:
+        player_id_model = None
+        
     team_classifier = CourtVisionTeamClassifier()
     mapper = CourtVisionMapper()
     visualizer = CourtVisionVisualizer()
@@ -194,6 +206,17 @@ def main():
         # --- [Stage A] Object Detection & Tracking ---
         player_tracks, ball_tracks = detector.track(video_frames)
 
+        # --- [Stage A.1] Player Segmentation (SAM2) ---
+        if segmenter is not None:
+            for idx, frame in enumerate(video_frames):
+                frame_tracks = player_tracks[idx]
+                if frame_tracks:
+                    pids = list(frame_tracks.keys())
+                    bboxes = [frame_tracks[pid]['bbox'] for pid in pids]
+                    masks = segmenter.segment_players(frame, bboxes)
+                    for pid, mask in zip(pids, masks):
+                        frame_tracks[pid]['mask'] = mask
+
         # --- [Stage B] Team Classification ---
         player_tracks = team_classifier.classify_players(
             video_frames, player_tracks, referee_ids=detector.referee_ids
@@ -205,6 +228,10 @@ def main():
             # OpenCV colors to tuple for minimap drawer
             mapper.drawer.team_1_color = (int(team_classifier.team_1_bgr[0]), int(team_classifier.team_1_bgr[1]), int(team_classifier.team_1_bgr[2]))
             mapper.drawer.team_2_color = (int(team_classifier.team_2_bgr[0]), int(team_classifier.team_2_bgr[1]), int(team_classifier.team_2_bgr[2]))
+
+        # --- [Stage B.1] Player Identification (OCR) ---
+        if player_id_model is not None:
+            player_tracks = player_id_model.identify_players(video_frames, player_tracks)
 
         # --- [Stage C] Court Mapping (Homography with stride optimization) ---
         player_tracks, ball_tracks = mapper.transform_tracks(video_frames, player_tracks, ball_tracks)

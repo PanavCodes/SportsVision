@@ -1,54 +1,59 @@
 # Basketball CourtVision Spatial Analytics Engine 🏀
 
-An end-to-end computer vision and spatial analytics pipeline for analyzing basketball games from broadcast video. This project seamlessly integrates state-of-the-art YOLO object tracking, homography-based minimap rendering, machine-learning-driven team classification, and geometric shot detection into a single automated pipeline.
+An end-to-end computer vision and spatial analytics pipeline for analyzing basketball games from broadcast video. This project seamlessly integrates state-of-the-art YOLO object tracking, SAM2 segmentation, SigLIP zero-shot classification, EasyOCR player identification, and pure geometric parabolic shot detection into a single automated pipeline.
 
 ## 🌟 Key Features
 
-1. **Player & Ball Tracking (BoT-SORT)** 🏃‍♂️
-   - Tracks players and basketballs simultaneously using dual YOLOv8 models (`yolov8m` for players, custom fine-tuned `basketball_best` for ball/referee).
-   - Utilizes advanced BoT-SORT algorithms to maintain identities through occlusions and fast movements.
+1. **Player & Ball Tracking (RF-DETR + Custom YOLO)** 🏃‍♂️
+   - Tracks players using RF-DETR (Roboflow DETR) and basketballs using a custom YOLOv8 model.
+   - Utilizes `roboflow/sports` BallTracker for physics-aware ball path smoothing.
    
-2. **Dynamic Team Classification (K-Means)** 👕
-   - Automatically discovers the primary colors of both teams playing based on jersey extraction (no hardcoded team colors).
-   - Leverages a custom heuristic that targets the center chest patch to extract reliable jersey pixels even on heavily stylized courts.
-   - Accurately classifies players to Team 1, Team 2, or Referee.
+2. **Player Segmentation (SAM2)** ✂️
+   - Generates pixel-perfect segmentation masks for players on the court using Meta's Segment Anything Model 2 (SAM2).
 
-3. **Tactical Minimap Overlay (Homography)** 🗺️
-   - Maps player coordinates from the broadcast camera view to a 2D top-down tactical minimap.
-   - Utilizes `CourtKeypointDetector` to identify court lines and compute a planar homography matrix.
-   - *Note on limitations:* Perspective-heavy FIBA broadcast angles may produce distorted keypoints which the engine correctly identifies as invalid, safely disabling the minimap tracking for that segment.
+3. **Dynamic Team Classification (SigLIP + UMAP)** 👕
+   - Employs SigLIP (Vision Transformer) for robust zero-shot feature extraction of player crops.
+   - Clusters player embeddings via UMAP and K-Means to automatically discover and assign Team 1 vs Team 2 colors dynamically without hardcoding.
 
-4. **Automated Analytics & Heatmaps** 📊
-   - Tracks ball possession percentages (Team 1 vs Team 2).
+4. **Player Identification (EasyOCR)** 🔢
+   - Reads jersey numbers in real-time utilizing EasyOCR to persist player identities throughout the broadcast.
+
+5. **Parabolic Shot Detection (Make/Miss Logic)** 🎯
+   - Pure geometric trajectory mapper that traces the basketball's path over time.
+   - Fits a 2nd-degree polynomial to the ball's coordinates to identify a shot arc and determines Make/Miss events by calculating intersections with hoop regions.
+
+6. **Broadcast Visuals & Minimap** 📺
+   - Draws glowing, fading colored trails behind the ball using `sports.common.ball.BallAnnotator`.
+   - Maps player coordinates via Homography to a 2D top-down tactical minimap.
    - Generates spatial heatmaps showing team movement and defensive pressure over time.
-   - Exports all analytics to `test_clip_analytics.json` for external dashboard integration.
 
 ## 📁 Architecture
 
-The project has been refactored into a clean, modular structure:
+The project features a highly modular structure:
 
 ```text
 CourtVision/
-├── main_pipeline.py          # Master entry point. Executes the 8-stage pipeline.
+├── main_pipeline.py          # Master entry point. Executes the entire pipeline.
 ├── config.py                 # Configuration variables, paths, and hardware settings.
+├── setup_models.py           # Auto-downloads all model weights to models/ directory.
 ├── core/
-│   ├── detector.py           # Wraps YOLO tracking for ball, referee, and players.
-│   ├── team_classifier.py    # K-Means logic for dynamic color extraction and assignment.
+│   ├── detector.py           # RF-DETR and YOLO tracking.
+│   ├── segmentation.py       # SAM2 integration.
+│   ├── team_classifier.py    # SigLIP + UMAP + KMeans clustering.
+│   ├── player_id.py          # EasyOCR jersey number detection.
+│   ├── shot_detector.py      # Parabolic Make/Miss trajectory engine.
 │   ├── court_mapper.py       # Handles Homography transformation for the Minimap.
-│   ├── visualizer.py         # Main video renderer (ellipses, HUD, ID tags).
-│   └── ...                   # Other core analytical engines.
-├── drawers/                  # UI components for rendering the minimap and graphics.
-├── external/                 # Integrated dependencies (Court Keypoints, ResNet50, etc.).
-├── models/                   # Contains ML weights (.pt files).
+│   └── visualizer.py         # Main video renderer (HUD, ID tags, ball trails).
+├── models/                   # Contains all downloaded ML weights (portable offline!).
 └── data/
     ├── videos/               # Raw input video files.
     └── output/               # Processed videos, heatmaps, and JSON reports.
 ```
 
-## 🚀 Usage
+## 🚀 Usage & Portability
 
 **Installation & Setup:**
-The easiest way to install the project and its dependencies is to use the provided setup scripts. This will automatically create a virtual environment (`venv`) and install everything from `requirements.txt`.
+The provided setup scripts automatically create a virtual environment (`venv`), install dependencies, and download all necessary AI models (YOLO, SAM2, SigLIP, EasyOCR) straight into the `models/` directory for 100% offline portability.
 
 *On Windows:*
 ```cmd
@@ -71,12 +76,6 @@ python main_pipeline.py data/videos/fiba_first_half.mp4
 
 *Optional Arguments:*
 - `--max-frames 100`: Stop processing after 100 frames (useful for testing).
-
-## 🛠️ Recent Fixes & Improvements
-
-- **Dynamic Color Injection**: The K-Means team colors are now automatically injected into both the HUD Visualizer and the Minimap Tactical Drawer.
-- **Improved Referee Exclusion**: Bounding box spatial matching thresholds for referees were tightened to ensure players fighting for the ball are no longer accidentally excluded from tracking.
-- **FIBA Court Resilience**: Jersey pixel extraction now focuses purely on a tighter chest crop, preventing grey/wood FIBA court colors from bleeding into the team classification clustering.
 
 ---
 *Developed by the CourtVision AI Engineering Team.*

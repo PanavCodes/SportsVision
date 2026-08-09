@@ -25,6 +25,14 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo [4/4] Downloading Model Weights...
+python setup_models.py
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to download models.
+    exit /b %errorlevel%
+)
+
+echo.
 echo ========================================================
 echo Setup Complete! 
 echo ========================================================

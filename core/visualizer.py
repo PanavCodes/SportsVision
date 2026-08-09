@@ -25,12 +25,7 @@ class CourtVisionVisualizer:
             2: config.TEAM_2_COLOR[::-1],
             0: (128, 128, 128)             # Grey for referee/unclassified
         }
-    
-    def update_colors(self, team1_bgr, team2_bgr):
-        """Update team colors dynamically after K-Means discovery."""
-        self.team_colors_bgr[1] = team1_bgr
-        self.team_colors_bgr[2] = team2_bgr
-        # HUD state accumulators (persist across batches)
+        # HUD state accumulators
         self.team1_possession_frames = 0
         self.team2_possession_frames = 0
         self.total_team1_passes = 0
@@ -39,6 +34,17 @@ class CourtVisionVisualizer:
         self.total_team2_interceptions = 0
         self.global_frame_counter = 0
         self.total_frames = 0
+        
+        try:
+            from sports.common.ball import BallAnnotator
+            self.ball_annotator = BallAnnotator(radius=8, buffer_size=15, thickness=-1)
+        except ImportError:
+            self.ball_annotator = None
+    
+    def update_colors(self, team1_bgr, team2_bgr):
+        """Update team colors dynamically after K-Means discovery."""
+        self.team_colors_bgr[1] = team1_bgr
+        self.team_colors_bgr[2] = team2_bgr
     
     def set_total_frames(self, total):
         self.total_frames = total
@@ -49,7 +55,7 @@ class CourtVisionVisualizer:
     def _get_width(self, bbox):
         return int(bbox[2] - bbox[0])
     
-    def _draw_ellipse(self, frame, bbox, color, track_id=None):
+    def _draw_ellipse(self, frame, bbox, color, track_id=None, jersey_number=None):
         """Draw an anti-aliased ellipse at player's feet with optional ID label."""
         y2 = int(bbox[3])
         x_center = int((bbox[0] + bbox[2]) / 2)
@@ -68,9 +74,12 @@ class CourtVisionVisualizer:
             lineType=cv2.LINE_AA
         )
         
-        # Track ID label
+        # Track ID and Jersey Number label
         if track_id is not None:
             label = str(track_id)
+            if jersey_number is not None:
+                label = f"#{jersey_number}"
+                
             (tw, th), _ = cv2.getTextSize(label, self.font, 0.5, 1)
             rect_w = max(tw + 10, 30)
             rect_h = 18
@@ -238,10 +247,11 @@ class CourtVisionVisualizer:
         for p_id, data in player_tracks.items():
             bbox = data['bbox']
             team = data.get('team', 0)
+            jersey = data.get('jersey_number', None)
             color = self.team_colors_bgr.get(team, (200, 200, 200))
             
             # Ellipse + ID label
-            self._draw_ellipse(frame, bbox, color, track_id=p_id)
+            self._draw_ellipse(frame, bbox, color, track_id=p_id, jersey_number=jersey)
             
             # Possession triangle
             if p_id == ball_holder:
@@ -254,11 +264,22 @@ class CourtVisionVisualizer:
         # Draw ball
         if 1 in ball_track:
             bbox = ball_track[1]['bbox']
-            cx = int((bbox[0] + bbox[2]) / 2)
-            cy = int((bbox[1] + bbox[3]) / 2)
-            r = max(int((bbox[2] - bbox[0]) / 2), 4)
-            cv2.circle(frame, (cx, cy), r, (0, 165, 255), -1, cv2.LINE_AA)
-            cv2.circle(frame, (cx, cy), r, (0, 100, 200), 1, cv2.LINE_AA)
+            conf = ball_track[1].get('conf', 1.0)
+            
+            if self.ball_annotator is not None:
+                import supervision as sv
+                import numpy as np
+                # BallAnnotator expects sv.Detections
+                detections = sv.Detections(
+                    xyxy=np.array([bbox]),
+                    confidence=np.array([conf])
+                )
+                frame = self.ball_annotator.annotate(frame, detections)
+            else:
+                x_center = int((bbox[0] + bbox[2]) / 2)
+                y_center = int((bbox[1] + bbox[3]) / 2)
+                cv2.circle(frame, (x_center, y_center), 8, (0, 165, 255), -1)
+                cv2.circle(frame, (x_center, y_center), 8, (255, 255, 255), 2)
         
         # Draw HUDs
         self._draw_ball_control_hud(frame)

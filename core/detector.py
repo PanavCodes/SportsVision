@@ -7,6 +7,13 @@ import numpy as np
 
 import config
 from ultralytics import YOLO
+import supervision as sv
+
+try:
+    from rfdetr import RFDETRMedium
+except ImportError:
+    pass
+
 
 
 class CourtVisionDetector:
@@ -20,19 +27,25 @@ class CourtVisionDetector:
     but only finds ~2 players/frame. By combining them, we get the best of both worlds.
     """
     def __init__(self):
-        # --- Player Model (COCO) ---
-        print(f"Loading player tracking model on {config.DEVICE}...")
-        player_model_path = config.PLAYER_MODEL_PATH
-        
-        if getattr(config, 'USE_ONNX', False):
-            trt_path = player_model_path.replace('.pt', '.engine')
-            if os.path.exists(trt_path):
-                player_model_path = trt_path
-                print(f"Using TensorRT Engine: {player_model_path}")
+        # --- Player Model ---
+        if getattr(config, 'USE_RF_DETR', False):
+            print(f"Loading RF-DETR model on {config.DEVICE}...")
+            self.player_model = RFDETRMedium()
+            # We use Supervision's ByteTrack to track RF-DETR detections over time
+            self.tracker = sv.ByteTrack()
+        else:
+            print(f"Loading player tracking model on {config.DEVICE}...")
+            player_model_path = config.PLAYER_MODEL_PATH
             
-        self.player_model = YOLO(player_model_path)
-        if player_model_path.endswith('.pt'):
-            self._configure_model(self.player_model)
+            if getattr(config, 'USE_ONNX', False):
+                trt_path = player_model_path.replace('.pt', '.engine')
+                if os.path.exists(trt_path):
+                    player_model_path = trt_path
+                    print(f"Using TensorRT Engine: {player_model_path}")
+                
+            self.player_model = YOLO(player_model_path)
+            if player_model_path.endswith('.pt'):
+                self._configure_model(self.player_model)
         
         # --- Ball Model (basketball_best.pt) ---
         print(f"Loading ball detection model on {config.DEVICE}...")
@@ -86,35 +99,52 @@ class CourtVisionDetector:
             for frame in tqdm.tqdm(frames, desc="YOLO Tracking", leave=False):
                 frame_h, frame_w = frame.shape[:2]
                 
-                # ===== PLAYER MODEL (COCO yolov8m) =====
-                # Uses native BoT-SORT tracking with persist=True for stable IDs
-                player_res = self.player_model.track(
-                    frame,
-                    verbose=False,
-                    classes=[0],  # COCO class 0 = person
-                    conf=config.PLAYER_CONFIDENCE,
-                    iou=0.45,
-                    imgsz=640,  # Native resolution for COCO model
-                    persist=True,
-                    tracker=self.tracker_yaml
-                )[0]
-                
+                # ===== PLAYER MODEL =====
                 p_frame_tracks = {}
-                
-                if player_res.boxes is not None and player_res.boxes.id is not None:
-                    cls = player_res.boxes.cls.cpu().numpy()
-                    ids = player_res.boxes.id.cpu().numpy()
-                    xyxy = player_res.boxes.xyxy.cpu().numpy()
-                    conf = player_res.boxes.conf.cpu().numpy()
+                if getattr(config, 'USE_RF_DETR', False):
+                    # RF-DETR native inference
+                    detections = self.player_model.predict(frame, threshold=config.PLAYER_CONFIDENCE)
+                    # Filter to only persons (class 0)
+                    detections = detections[detections.class_id == 0]
+                    # Update tracker
+                    tracked_detections = self.tracker.update_with_detections(detections)
                     
-                    for c, i, box, cf in zip(cls, ids, xyxy, conf):
-                        x1, y1, x2, y2 = box
+                    if tracked_detections is not None and len(tracked_detections) > 0:
+                        for i in range(len(tracked_detections)):
+                            box = tracked_detections.xyxy[i]
+                            t_id = tracked_detections.tracker_id[i] if tracked_detections.tracker_id is not None else None
+                            if t_id is not None:
+                                # Crowd filter: skip detections in top 25% of frame
+                                if box[3] < frame_h * 0.25:
+                                    continue
+                                p_frame_tracks[int(t_id)] = {'bbox': box.tolist()}
+                else:
+                    # Uses native BoT-SORT tracking with persist=True for stable IDs
+                    player_res = self.player_model.track(
+                        frame,
+                        verbose=False,
+                        classes=[0],  # COCO class 0 = person
+                        conf=config.PLAYER_CONFIDENCE,
+                        iou=0.45,
+                        imgsz=640,  # Native resolution for COCO model
+                        persist=True,
+                        tracker=self.tracker_yaml
+                    )[0]
+                    
+                    if player_res.boxes is not None and player_res.boxes.id is not None:
+                        cls = player_res.boxes.cls.cpu().numpy()
+                        ids = player_res.boxes.id.cpu().numpy()
+                        xyxy = player_res.boxes.xyxy.cpu().numpy()
+                        conf = player_res.boxes.conf.cpu().numpy()
                         
-                        # Crowd filter: skip detections in top 25% of frame
-                        if y2 < frame_h * 0.25:
-                            continue
-                        
-                        p_frame_tracks[int(i)] = {'bbox': box.tolist()}
+                        for c, i, box, cf in zip(cls, ids, xyxy, conf):
+                            x1, y1, x2, y2 = box
+                            
+                            # Crowd filter: skip detections in top 25% of frame
+                            if y2 < frame_h * 0.25:
+                                continue
+                            
+                            p_frame_tracks[int(i)] = {'bbox': box.tolist()}
                 
                 player_tracks.append(p_frame_tracks)
                 
@@ -169,27 +199,58 @@ class CourtVisionDetector:
                 
                 raw_ball_tracks.append(b_frame_tracks)
             
-        # Ball EMA Smoothing
+        # Ball Smoothing via sports library
         final_ball_tracks = []
+        try:
+            from sports.common.ball import BallTracker
+            if not hasattr(self, 'ball_tracker'):
+                self.ball_tracker = BallTracker(buffer_size=10)
+        except ImportError:
+            self.ball_tracker = None
+            
         for frame_tracks in raw_ball_tracks:
             cleaned_tracks = {}
-            if 1 in frame_tracks:
-                curr_bbox = np.array(frame_tracks[1]['bbox'])
+            
+            if self.ball_tracker is not None:
+                # Use sports.common.ball.BallTracker
+                boxes = []
+                confs = []
+                if 1 in frame_tracks:
+                    boxes.append(frame_tracks[1]['bbox'])
+                    confs.append(frame_tracks[1]['conf'])
                 
-                if self.ball_ema is None:
-                    self.ball_ema = curr_bbox
+                if boxes:
+                    detections = sv.Detections(
+                        xyxy=np.array(boxes),
+                        confidence=np.array(confs)
+                    )
                 else:
-                    self.ball_ema = self.ema_alpha * curr_bbox + (1 - self.ema_alpha) * self.ball_ema
+                    detections = sv.Detections.empty()
                     
-                cleaned_tracks[1] = {'bbox': self.ball_ema.tolist()}
-                self.frames_since_ball = 0
+                tracked_detections = self.ball_tracker.update(detections)
+                if len(tracked_detections) > 0:
+                    cleaned_tracks[1] = {
+                        'bbox': tracked_detections.xyxy[0].tolist(),
+                        'conf': float(tracked_detections.confidence[0]) if tracked_detections.confidence is not None else 1.0
+                    }
             else:
-                self.frames_since_ball += 1
-                if self.frames_since_ball > self.max_ball_coast:
-                    self.ball_ema = None
-                elif self.ball_ema is not None:
-                    cleaned_tracks[1] = {'bbox': self.ball_ema.tolist()}
-                    
+                # Fallback to EMA if sports is not installed
+                if 1 in frame_tracks:
+                    curr_bbox = np.array(frame_tracks[1]['bbox'])
+                    if self.ball_ema is None:
+                        self.ball_ema = curr_bbox
+                    else:
+                        self.ball_ema = self.ema_alpha * curr_bbox + (1 - self.ema_alpha) * self.ball_ema
+                        
+                    cleaned_tracks[1] = {'bbox': self.ball_ema.tolist(), 'conf': frame_tracks[1]['conf']}
+                    self.frames_since_ball = 0
+                else:
+                    self.frames_since_ball += 1
+                    if self.frames_since_ball > self.max_ball_coast:
+                        self.ball_ema = None
+                    elif self.ball_ema is not None:
+                        cleaned_tracks[1] = {'bbox': self.ball_ema.tolist(), 'conf': 0.5}
+                        
             final_ball_tracks.append(cleaned_tracks)
         
         # Free VRAM

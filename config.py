@@ -5,6 +5,10 @@ import torch
 WORKSPACE_ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJECTS_ROOT = os.path.dirname(WORKSPACE_ROOT)
 
+# Localize Cache Directories for portability
+os.environ["HF_HOME"] = os.path.join(WORKSPACE_ROOT, "models", "hf_cache")
+os.environ["EASYOCR_MODULE_PATH"] = os.path.join(WORKSPACE_ROOT, "models", "easyocr")
+
 # Extracted Repositories Paths (Migrated into external/)
 EXTERNAL_DIR = os.path.join(WORKSPACE_ROOT, "external")
 REPO1_DIR = os.path.join(EXTERNAL_DIR, "AI_BasketBall_Analysis_v1-main")
@@ -21,11 +25,20 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 USE_FP16 = True
 
 # --- Dual-Model Detector ---
+USE_RF_DETR = True
 PLAYER_MODEL_PATH = os.path.join(WORKSPACE_ROOT, "models", "yolov8m.pt")       # COCO model — excellent at detecting people
 BALL_MODEL_PATH = os.path.join(WORKSPACE_ROOT, "models", "basketball_best.pt")  # Fine-tuned — detects ball + referee
 PLAYER_CONFIDENCE = 0.25   # Min confidence for player detections
 BALL_CONFIDENCE = 0.15     # Min confidence for ball detections (low because ball is small/blurry)
 TRACKER_CONFIDENCE = 0.5
+
+# --- Segmentation (SAM2) ---
+USE_SAM2 = True
+SAM_MODEL_PATH = "sam2.1_s.pt" # Ultralytics will auto-download this to the root if not present
+
+# --- Player Identification (Phase 2) ---
+USE_SIGLIP = True
+USE_OCR = True
 
 # --- Team Classifier (Repo 3 - K-Means) ---
 TEAM_1_COLOR = (255, 0, 0) # Red
