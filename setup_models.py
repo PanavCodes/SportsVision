@@ -21,7 +21,7 @@ else:
     print("YOLOv8m already exists.")
 
 # 2. SAM2 (Segmentation)
-sam2_url = "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_s.pt"
+sam2_url = "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt"
 sam2_path = config.SAM_MODEL_PATH
 if not os.path.exists(sam2_path):
     print(f"Downloading SAM2.1_s to {sam2_path}...")
