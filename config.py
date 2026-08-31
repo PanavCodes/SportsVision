@@ -32,7 +32,7 @@ USE_SAM2 = True
 SAM_MODEL_PATH = os.path.join(
     WORKSPACE_ROOT,
     "models",
-    "sam2.1_hiera_small.pt") # Ultralytics will auto-download this to the root if not present
+    "sam2.1_s.pt") # Ultralytics will auto-download this to the root if not present
 
 # --- Player Identification (Phase 2) ---
 USE_SIGLIP = False

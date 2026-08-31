@@ -20,14 +20,27 @@ if not os.path.exists(yolo_path):
 else:
     print("YOLOv8m already exists.")
 
-# 2. SAM2 (Segmentation)
-sam2_url = "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt"
+# 2. SAM2.1 Small (Ultralytics format)
 sam2_path = config.SAM_MODEL_PATH
+
 if not os.path.exists(sam2_path):
-    print(f"Downloading SAM2.1_s to {sam2_path}...")
-    urllib.request.urlretrieve(sam2_url, sam2_path)
+    print(f"Downloading Ultralytics SAM2.1 Small to {sam2_path}...")
+
+    from ultralytics import SAM
+    SAM("sam2.1_s.pt")
+
+    # Ultralytics downloads the checkpoint to the current directory.
+    downloaded_path = os.path.abspath("sam2.1_s.pt")
+
+    if os.path.exists(downloaded_path):
+        os.replace(downloaded_path, sam2_path)
+    else:
+        raise FileNotFoundError(
+            f"Ultralytics did not download the expected model: "
+            f"{downloaded_path}"
+        )
 else:
-    print("SAM2 already exists.")
+    print("SAM2.1 Small already exists.")
 
 # 3. SigLIP (Team Classification)
 print("Downloading/Verifying SigLIP (HuggingFace)...")
