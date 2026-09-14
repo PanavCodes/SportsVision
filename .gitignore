@@ -30,7 +30,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# YOLOv8 & PyTorch
+# YOLOv8 & PyTorch Checkpoints
 runs/
 *.pt
 *.engine
@@ -41,23 +41,25 @@ runs/
 *.hdf5
 *.ckpt
 
-# Explicitly keep the specific models we NEED in the models directory (override the *.pt rule)
-!models/basketball_best.pt
-!models/basketball_best-2.pt
-!models/basketball_best-3.pt
+# Keep core fine-tuned sport models for out-of-the-box portability
+!models/basketball/basketball_best.pt
+!models/basketball/court_keypoint_detector.pt
+!models/cricket/CBDbest.pt
+!models/cricket/cricket_ball_best.pt
 
-!models/court_keypoint_detector.pt
+# Ignore large foundation models downloaded by setup_models.py
+models/shared/*.pt
+models/shared/hf_cache/
+models/shared/easyocr/
+models/hf_cache/
+models/easyocr/
 
 # Data & Media
-data/videos/*.mp4
-data/videos/*.avi
-data/videos/*.mov
-data/output/*.mp4
-data/output/*.avi
-data/output/*.json
-data/output/*.jpg
-data/output/*.png
+data/videos/
+data/output/
 *.mp4
+*.avi
+*.mov
 
 # OS generated files
 .DS_Store
@@ -86,7 +88,3 @@ desktop.ini
 # Temporary / Scratch
 scratch/
 test_phase*.jpg
-
-# Large model caches (Downloaded by setup_models.py instead)
-models/hf_cache/
-models/easyocr/

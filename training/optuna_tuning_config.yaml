@@ -1,0 +1,30 @@
+# Optuna Hyperparameter Tuning Space for Cricket YOLOv8
+# Calibrated for small, high-velocity cricket ball & stump detection at 640px
+# Hardware target: NVIDIA GeForce RTX 4060 Laptop GPU (8GB VRAM)
+
+task: detect
+model: yolov8m.pt
+imgsz: 640
+epochs: 50
+batch: 16
+device: 0
+half: true  # FP16 mixed precision on CUDA
+
+# Optuna Search Bounds
+tune_params:
+  lr0: [0.001, 0.02]          # Initial learning rate
+  lrf: [0.01, 0.2]            # Final learning rate fraction (lr0 * lrf)
+  momentum: [0.85, 0.98]      # SGD / AdamW momentum
+  weight_decay: [0.0001, 0.001]
+  warmup_epochs: [2.0, 5.0]
+  box: [5.0, 10.0]            # Box loss gain
+  cls: [0.3, 1.2]             # Class loss gain
+  dfl: [1.0, 2.5]             # Distribution focal loss gain
+  hsv_h: [0.01, 0.02]         # HSV hue augmentation
+  hsv_s: [0.4, 0.8]           # HSV saturation augmentation
+  hsv_v: [0.3, 0.6]           # HSV value augmentation
+  degrees: [0.0, 10.0]        # Rotation
+  translate: [0.05, 0.15]     # Translation
+  scale: [0.2, 0.6]           # Scale jitter
+  shear: [0.0, 2.0]
+  mosaic: [0.5, 1.0]          # Mosaic augmentation

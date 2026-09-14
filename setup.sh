@@ -1,10 +1,10 @@
 #!/bin/bash
 echo "========================================================"
-echo "CourtVision Spatial Analytics Engine - Setup (Linux/Mac)"
+echo "SportsVision Spatial Analytics Engine - Setup (Linux/Mac)"
 echo "========================================================"
 echo ""
 
-echo "[1/3] Creating Python Virtual Environment (venv)..."
+echo "[1/4] Creating Python Virtual Environment (venv)..."
 python3 -m venv venv
 if [ $? -ne 0 ]; then
     echo "[ERROR] Failed to create virtual environment. Make sure python3-venv is installed."
@@ -12,12 +12,12 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
-echo "[2/3] Activating Virtual Environment and Upgrading PIP..."
+echo "[2/4] Activating Virtual Environment and Upgrading PIP..."
 source venv/bin/activate
 python3 -m pip install --upgrade pip
 echo ""
 
-echo "[3/3] Installing Dependencies..."
+echo "[3/4] Installing Dependencies..."
 pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo "[ERROR] Failed to install dependencies."
@@ -25,10 +25,10 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
-echo "[4/4] Downloading Model Weights..."
+echo "[4/4] Verifying and Downloading Model Weights..."
 python3 setup_models.py
 if [ $? -ne 0 ]; then
-    echo "[ERROR] Failed to download models."
+    echo "[ERROR] Failed to download or verify models."
     exit 1
 fi
 echo ""
@@ -39,6 +39,9 @@ echo "========================================================"
 echo "To run the pipeline, first activate the environment:"
 echo "  source venv/bin/activate"
 echo ""
-echo "Then run:"
-echo "  python main_pipeline.py data/videos/fiba_first_half.mp4"
+echo "Process Basketball video:"
+echo "  python main_pipeline.py path/to/basketball_video.mp4"
+echo ""
+echo "Process Cricket video:"
+echo "  python main_pipeline.py path/to/cricket_video.mp4"
 echo ""
