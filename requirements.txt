@@ -37,9 +37,15 @@ umap-learn>=0.5.3
 optuna>=3.0.0
 PyYAML>=6.0
 
+# Web Studio Frontend
+fastapi>=0.110.0
+uvicorn>=0.28.0
+python-multipart>=0.0.9
+
 # -------------------------------------------------------------------------
 # Optional Deep Learning Extensions (Uncomment if needed)
 # Requires Git installed in system PATH and C++ build tools:
 # git+https://github.com/roboflow/rf-detr.git
 # git+https://github.com/roboflow/sports.git
 # -------------------------------------------------------------------------
+

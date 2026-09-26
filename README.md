@@ -169,9 +169,18 @@ pip install -r requirements.txt
 python setup_models.py
 ```
 
+### 3. Launch Web Studio Frontend 🌐 (Recommended for Presentations & Demos)
+Run the web interface to view live telemetry, interactive video playback, tactical minimaps, and post-game analytics without using terminal commands:
+- **Windows One-Click:** Double-click [run_app.bat](file:///run_app.bat)
+- **Terminal:**
+  ```bash
+  python app.py
+  ```
+  The browser will automatically open to `http://localhost:8000`.
+
 ---
 
-## 🚀 Running the Pipeline
+## 🚀 Running via Command-Line Pipeline
 
 SportsVision automatically detects the sport from the input video:
 
