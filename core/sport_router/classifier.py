@@ -18,21 +18,20 @@ class SportClassifier:
         self._init_clip()
 
     def _init_clip(self):
-        """Optionally load CLIP / SigLIP if available in environment."""
+        """Optionally load CLIP / SigLIP if enabled and available in local offline cache."""
+        import config
+        if not getattr(config, "USE_SIGLIP", False):
+            return
         try:
             from transformers import AutoProcessor, AutoModel
-            import config
             model_id = "google/siglip-base-patch16-224"
-            # Try loading from local offline cache first
-            try:
-                self.clip_processor = AutoProcessor.from_pretrained(model_id, local_files_only=True)
-                self.clip_model = AutoModel.from_pretrained(model_id, local_files_only=True).to(config.DEVICE)
-            except Exception:
-                self.clip_processor = AutoProcessor.from_pretrained(model_id)
-                self.clip_model = AutoModel.from_pretrained(model_id).to(config.DEVICE)
+            # Only load if present in local offline cache (never hang on remote network download)
+            self.clip_processor = AutoProcessor.from_pretrained(model_id, local_files_only=True)
+            self.clip_model = AutoModel.from_pretrained(model_id, local_files_only=True).to(config.DEVICE)
             self.clip_model.eval()
         except Exception:
-            # Fall back cleanly to chromatic & geometric classifier
+            # Fall back cleanly to high-speed chromatic & geometric classifier
+            self.clip_processor = None
             self.clip_model = None
 
     def classify_frame(self, frame_bgr):

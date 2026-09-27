@@ -2,6 +2,7 @@ import sys
 import os
 import torch
 import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="supervision.*")
 from collections import defaultdict
 import numpy as np
 

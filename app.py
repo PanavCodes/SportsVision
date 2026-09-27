@@ -198,17 +198,32 @@ class PipelineManager:
             self.status["current_frame"] = cur
             self.status["total_frames"] = tot
 
+        # Extract FPS (from postfix or tqdm speed)
         m_fps = re.search(r"FPS=([0-9.]+)", line)
         if m_fps:
             self.status["fps"] = m_fps.group(1)
+        else:
+            m_rate = re.search(r"([0-9.]+)\s*(?:frames/s|it/s)", line)
+            if m_rate:
+                self.status["fps"] = m_rate.group(1)
 
-        m_eta = re.search(r"ETA=([0-9a-zA-Z\s]+),", line)
+        # Extract ETA (supports colon formatted 00:03, 01:25)
+        m_eta = re.search(r"ETA=([0-9a-zA-Z\s:]+?)(?:,|$)", line)
         if m_eta:
             self.status["eta"] = m_eta.group(1).strip()
+        else:
+            m_tqdm_eta = re.search(r"<([0-9:]+)", line)
+            if m_tqdm_eta:
+                self.status["eta"] = m_tqdm_eta.group(1).strip()
 
+        # Extract VRAM
         m_vram = re.search(r"VRAM=([0-9a-zA-Z]+)", line)
         if m_vram:
             self.status["vram"] = m_vram.group(1).strip()
+        elif "GPU VRAM:" in line:
+            m_gv = re.search(r"GPU VRAM:\s*([0-9.]+\s*GB)", line)
+            if m_gv:
+                self.status["vram"] = m_gv.group(1).strip()
 
     def run_pipeline(
         self,
@@ -217,6 +232,7 @@ class PipelineManager:
         max_frames: Optional[int] = None,
         frame_skip: Optional[int] = None,
         batch_size: Optional[int] = None,
+        use_sam2: bool = True,
         resume: bool = False
     ):
         if self.is_running:
@@ -242,6 +258,8 @@ class PipelineManager:
             cmd.extend(["--frame-skip", str(frame_skip)])
         if batch_size:
             cmd.extend(["--batch-size", str(batch_size)])
+        if not use_sam2:
+            cmd.append("--no-sam2")
         if resume:
             cmd.append("--resume")
 
@@ -393,6 +411,14 @@ def find_available_videos():
                         except Exception:
                             detected_sport = "basketball"
 
+                    if detected_sport == "unknown":
+                        parent_name = f.parent.name.lower()
+                        stem_lower = name.lower()
+                        if "cricket" in parent_name or any(k in stem_lower for k in ["cricket", "ipl", "t20", "pitch", "bowl", "bat", "wicket", "overs", "indiavsjapan", "indvs"]):
+                            detected_sport = "cricket"
+                        elif "basketball" in parent_name or any(k in stem_lower for k in ["basket", "fiba", "nba", "dunk", "hoop", "court"]):
+                            detected_sport = "basketball"
+
                     videos.append({
                         "name": f.name,
                         "stem": name,
@@ -400,7 +426,11 @@ def find_available_videos():
                         "size_mb": size_mb,
                         "has_results": has_results,
                         "detected_sport": detected_sport,
+                        "mtime": f.stat().st_mtime,
                     })
+
+    # Sort so newest uploaded/added video is first
+    videos.sort(key=lambda v: v.get("mtime", 0), reverse=True)
     return videos
 
 
@@ -787,6 +817,7 @@ async def start_pipeline(
     max_frames: Optional[int] = Form(None),
     frame_skip: Optional[int] = Form(None),
     batch_size: Optional[int] = Form(None),
+    use_sam2: bool = Form(True),
     resume: bool = Form(False)
 ):
     if pipeline_mgr.is_running:
@@ -809,6 +840,7 @@ async def start_pipeline(
             max_frames=max_frames,
             frame_skip=frame_skip,
             batch_size=batch_size,
+            use_sam2=use_sam2,
             resume=resume
         )
         return {"status": "started", "video_path": video_path, "sport": sport}

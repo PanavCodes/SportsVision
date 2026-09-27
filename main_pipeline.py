@@ -33,11 +33,16 @@ def main():
     parser.add_argument("--max-frames", type=int, default=None, help="Limit number of frames to process")
     parser.add_argument("--frame-skip", type=int, default=None, help="Process every Nth frame (overrides config)")
     parser.add_argument("--batch-size", type=int, default=None, help="Frames per batch (overrides config)")
+    parser.add_argument("--no-sam2", action="store_true", help="Disable SAM2 instance segmentation to conserve VRAM (recommended for <=4GB GPUs like MX450)")
     parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
     args = parser.parse_args()
 
     if not os.path.exists(args.video_path):
         raise FileNotFoundError(f"Input video not found: {args.video_path}")
+
+    if args.no_sam2:
+        config.USE_SAM2 = False
+        print("[Main Pipeline] Hardware Profile: SAM2 disabled to conserve VRAM.")
 
     # Determine Sport Category
     chosen_sport = args.sport

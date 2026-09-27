@@ -123,7 +123,7 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
 
     while True:
         video_frames = []
-        for _ in range(BATCH_SIZE):
+        while len(video_frames) < BATCH_SIZE:
             if max_frames and frame_count >= max_frames:
                 break
             ret, frame = cap.read()

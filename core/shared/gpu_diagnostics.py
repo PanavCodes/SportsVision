@@ -17,8 +17,6 @@ def verify_cuda():
     print(f"Device Count: {device_count}")
     print(f"Current Device: {current_device} ({device_name})")
     
-    # Optional: check if it's the RTX 4060
-    if "4060" not in device_name:
-        print("WARNING: Expected RTX 4060, but found another GPU.")
-        
+    vram_gb = round(torch.cuda.get_device_properties(current_device).total_memory / (1024**3), 2)
+    print(f"GPU VRAM: {vram_gb} GB")
     return True

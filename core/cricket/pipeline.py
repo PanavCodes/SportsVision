@@ -276,7 +276,7 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
 
     while True:
         video_frames = []
-        for _ in range(BATCH_SIZE):
+        while len(video_frames) < BATCH_SIZE:
             if max_frames and frame_count >= max_frames:
                 break
             ret, frame = cap.read()
@@ -448,7 +448,17 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+        elapsed = time.time() - pipeline_start
+        fps_avg = frame_count / elapsed if elapsed > 0 else 0
+        remaining_frames = max(0, total_frames - frame_count)
+        eta_sec = remaining_frames / fps_avg if fps_avg > 0 else 0
+
         pbar.update(len(video_frames))
+        pbar.set_postfix({
+            'FPS': f'{fps_avg:.1f}',
+            'ETA': format_time(eta_sec),
+            'VRAM': f'{torch.cuda.memory_allocated() / 1024**2:.0f}MB' if torch.cuda.is_available() else 'N/A'
+        })
 
     cap.release()
     out_video.release()

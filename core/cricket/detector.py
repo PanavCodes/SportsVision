@@ -1,5 +1,8 @@
 import os
 import sys
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="supervision.*")
+
 import cv2
 import torch
 import numpy as np

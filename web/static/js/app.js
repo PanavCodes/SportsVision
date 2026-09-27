@@ -53,6 +53,14 @@ const elements = {
   // Sport radios
   sportRadios: document.querySelectorAll('.sport-radio'),
 
+  // Hardware Profiles
+  hardwareCards: document.querySelectorAll('.hardware-card'),
+  activeGpuBadge: document.getElementById('activeGpuBadge'),
+  inputUseSam2: document.getElementById('inputUseSam2'),
+  sam2StatusText: document.getElementById('sam2StatusText'),
+  batchSizeHint: document.getElementById('batchSizeHint'),
+  frameSkipHint: document.getElementById('frameSkipHint'),
+
   // Preset Chips
   presetChips: document.querySelectorAll('.preset-chip'),
   inputMaxFrames: document.getElementById('inputMaxFrames'),
@@ -137,6 +145,7 @@ const elements = {
 // ========================== Initialize ==========================
 document.addEventListener('DOMContentLoaded', async () => {
   initTabs();
+  initHardwareProfiles();
   initPresets();
   initVideoSync();
   initUploadZone();
@@ -177,6 +186,62 @@ function switchTab(tabId) {
   if (tabBtn) tabBtn.click();
 }
 
+// ========================== Hardware Profiles ==========================
+function initHardwareProfiles() {
+  const profiles = {
+    mx450: {
+      batchSize: '1',
+      frameSkip: '2',
+      useSam2: false,
+      badgeText: 'MX450 (2GB VRAM)',
+      batchHint: 'MX450: Batch 1 (Zero-OOM)',
+      skipHint: 'Skip 2 (Reduces VRAM & thermals)',
+      sam2Text: 'Disabled for 2GB VRAM (Avoids CUDA OOM)',
+      toast: '💻 Applied MX450 2GB profile: Batch 1, Skip 2, SAM2 Disabled (Zero-OOM Safe)'
+    },
+    rtx3050: {
+      batchSize: '6',
+      frameSkip: '1',
+      useSam2: true,
+      badgeText: 'RTX 3050 (6GB VRAM)',
+      batchHint: 'RTX 3050: Batch 6',
+      skipHint: '1 = Full frame processing',
+      sam2Text: 'Player masks enabled (Optimized for 6GB VRAM)',
+      toast: '🚀 Applied RTX 3050 6GB profile: Batch 6, Skip 1, SAM2 Enabled'
+    },
+    rtx4060: {
+      batchSize: '16',
+      frameSkip: '1',
+      useSam2: true,
+      badgeText: 'RTX 4060 (8GB+ VRAM)',
+      batchHint: 'RTX 4060 8GB+: Batch 16',
+      skipHint: '1 = Full frame processing',
+      sam2Text: 'Full SAM2 segmentation + ByteTrack',
+      toast: '🔥 Applied RTX 4060 profile: Batch 16, Skip 1, SAM2 Enabled'
+    }
+  };
+
+  elements.hardwareCards.forEach(card => {
+    card.addEventListener('click', () => {
+      elements.hardwareCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const gpuKey = card.dataset.gpu;
+      const conf = profiles[gpuKey];
+      if (!conf) return;
+
+      elements.inputBatchSize.value = conf.batchSize;
+      elements.inputFrameSkip.value = conf.frameSkip;
+      if (elements.inputUseSam2) elements.inputUseSam2.checked = conf.useSam2;
+      if (elements.activeGpuBadge) elements.activeGpuBadge.textContent = conf.badgeText;
+      if (elements.batchSizeHint) elements.batchSizeHint.textContent = conf.batchHint;
+      if (elements.frameSkipHint) elements.frameSkipHint.textContent = conf.skipHint;
+      if (elements.sam2StatusText) elements.sam2StatusText.textContent = conf.sam2Text;
+
+      showToast('info', conf.toast);
+    });
+  });
+}
+
 // ========================== Preset Handler ==========================
 function initPresets() {
   elements.presetChips.forEach(chip => {
@@ -185,10 +250,10 @@ function initPresets() {
       chip.classList.add('active');
       const preset = chip.dataset.preset;
       if (preset === 'quick') {
-        elements.inputMaxFrames.value = '60';
+        elements.inputMaxFrames.value = '150';
         elements.inputFrameSkip.value = '2';
       } else if (preset === 'standard') {
-        elements.inputMaxFrames.value = '180';
+        elements.inputMaxFrames.value = '300';
         elements.inputFrameSkip.value = '1';
       } else if (preset === 'full') {
         elements.inputMaxFrames.value = '';
@@ -314,7 +379,7 @@ function uploadFile(file) {
 
     if (xhr.status === 200) {
       showToast('success', `"${file.name}" uploaded successfully!`);
-      loadVideos();
+      loadVideos(file.name);
     } else {
       try {
         const err = JSON.parse(xhr.responseText);
@@ -342,9 +407,22 @@ async function loadSystemInfo() {
     if (data.cuda_available) {
       elements.systemGpuText.textContent = `${data.gpu_name} (${data.vram_gb} GB VRAM) • CUDA Active`;
       elements.systemStatusDot.classList.remove('inactive');
+
+      // Auto-suggest hardware profile based on detected VRAM / GPU model
+      const gpuLower = (data.gpu_name || '').toLowerCase();
+      if (data.vram_gb <= 2.5 || gpuLower.includes('mx450') || gpuLower.includes('mx350') || gpuLower.includes('mx')) {
+        const mxCard = document.querySelector('.hardware-card[data-gpu="mx450"]');
+        if (mxCard) mxCard.click();
+      } else if (data.vram_gb <= 6.5 || gpuLower.includes('3050') || gpuLower.includes('1650') || gpuLower.includes('2060')) {
+        const rtxCard = document.querySelector('.hardware-card[data-gpu="rtx3050"]');
+        if (rtxCard) rtxCard.click();
+      }
     } else {
       elements.systemGpuText.textContent = `CPU Mode (${data.gpu_name})`;
       elements.systemStatusDot.classList.add('inactive');
+      // For CPU mode, default to MX450 ultra-light mode
+      const mxCard = document.querySelector('.hardware-card[data-gpu="mx450"]');
+      if (mxCard) mxCard.click();
     }
   } catch (err) {
     console.error('Failed to load system info:', err);
@@ -353,7 +431,7 @@ async function loadSystemInfo() {
 }
 
 // ========================== Load Videos ==========================
-async function loadVideos() {
+async function loadVideos(targetFilename = null) {
   try {
     const res = await fetch('/api/videos');
     const data = await res.json();
@@ -376,6 +454,16 @@ async function loadVideos() {
       elements.videoSelect.appendChild(opt);
     });
 
+    if (targetFilename) {
+      for (let i = 0; i < elements.videoSelect.options.length; i++) {
+        const opt = elements.videoSelect.options[i];
+        if (opt.dataset.filename === targetFilename || opt.dataset.stem === targetFilename) {
+          elements.videoSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
+
     onVideoSelectionChange();
   } catch (err) {
     console.error('Failed to load videos:', err);
@@ -383,7 +471,7 @@ async function loadVideos() {
 }
 
 elements.videoSelect.addEventListener('change', onVideoSelectionChange);
-elements.refreshVideosBtn.addEventListener('click', loadVideos);
+elements.refreshVideosBtn.addEventListener('click', () => loadVideos());
 
 function onVideoSelectionChange() {
   const selectedOpt = elements.videoSelect.selectedOptions[0];
@@ -391,6 +479,7 @@ function onVideoSelectionChange() {
 
   currentVideoStem = selectedOpt.dataset.stem || "";
   const hasResults = selectedOpt.dataset.hasResults === "true";
+  const videoSport = selectedOpt.dataset.sport || "unknown";
 
   if (hasResults) {
     elements.hasSavedBadge.style.display = 'inline-flex';
@@ -398,9 +487,30 @@ function onVideoSelectionChange() {
   } else {
     elements.hasSavedBadge.style.display = 'none';
     elements.btnLoadSaved.style.display = 'none';
+
+    // Clear stale outputs from prior video (e.g. FIBA) so unanalyzed video is clean
+    elements.annotatedVideoPlayer.removeAttribute('src');
+    elements.annotatedVideoPlayer.load();
+    elements.highlightsVideoPlayer.removeAttribute('src');
+    elements.highlightsVideoPlayer.load();
+
+    elements.bbSection.style.display = 'none';
+    elements.ckSection.style.display = 'none';
+    elements.analyticsPlaceholder.style.display = 'block';
+
+    elements.bbHeatmapsSection.style.display = 'none';
+    elements.ckVisualsSection.style.display = 'none';
+    elements.heatmapPlaceholder.style.display = 'block';
   }
 
-  // Set raw video source
+  // Update sport badge hint if known
+  if (videoSport !== "unknown") {
+    updateSportBadge(videoSport);
+  } else {
+    updateSportBadge(selectedSportOverride);
+  }
+
+  // Set raw video source for preview
   const rawFileName = selectedOpt.dataset.filename || (selectedOpt.value ? selectedOpt.value.split(/[\\/]/).pop() : "");
   if (rawFileName) {
     elements.rawVideoPlayer.src = `/api/video/raw/${encodeURIComponent(rawFileName)}`;
@@ -428,6 +538,9 @@ elements.btnRunPipeline.addEventListener('click', async () => {
   }
   if (elements.inputBatchSize.value) {
     formData.append('batch_size', elements.inputBatchSize.value);
+  }
+  if (elements.inputUseSam2) {
+    formData.append('use_sam2', elements.inputUseSam2.checked ? 'true' : 'false');
   }
 
   setPipelineRunningUI(true);
