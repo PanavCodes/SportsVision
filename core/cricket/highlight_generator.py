@@ -81,14 +81,23 @@ class CricketHighlightGenerator:
         try:
             from moviepy import VideoFileClip, concatenate_videoclips
             video = VideoFileClip(video_path)
-            clips = []
-
+            # Merge overlapping intervals to avoid repeating footage in the reel
+            intervals = []
             for frame_idx in fused_frames:
                 start_sec = max(0.0, (frame_idx / fps) - self.clip_before_sec)
                 end_sec = min(video.duration - 0.05, (frame_idx / fps) + self.clip_after_sec)
-
                 if end_sec > start_sec + 0.5:
-                    clips.append(video.subclipped(start_sec, end_sec))
+                    intervals.append((start_sec, end_sec))
+
+            merged_intervals = []
+            for s, e in sorted(intervals):
+                if merged_intervals and s <= merged_intervals[-1][1]:
+                    merged_intervals[-1] = (merged_intervals[-1][0], max(merged_intervals[-1][1], e))
+                else:
+                    merged_intervals.append((s, e))
+
+            for s, e in merged_intervals:
+                clips.append(video.subclipped(s, e))
 
             if clips:
                 final_clip = concatenate_videoclips(clips)

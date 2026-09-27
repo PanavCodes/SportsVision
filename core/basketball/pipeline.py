@@ -216,7 +216,8 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
         shot_detector.update_batch(output_frames, ball_tracks, player_tracks)
         
         for frame in output_frames:
-            out_video.write(frame)
+            for _ in range(FRAME_SKIP if FRAME_SKIP > 1 else 1):
+                out_video.write(frame)
 
         # [Stage J] Update Analytics
         analytics.update_possession(ball_possession, player_tracks)

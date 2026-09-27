@@ -42,6 +42,34 @@ const elements = {
   btnStopPipeline: document.getElementById('btnStopPipeline'),
   btnLoadSaved: document.getElementById('btnLoadSaved'),
   hasSavedBadge: document.getElementById('hasSavedBadge'),
+  loadSavedContainer: document.getElementById('loadSavedContainer'),
+
+  // Selected Video Summary Card
+  selectedVideoCard: document.getElementById('selectedVideoCard'),
+  selectedVideoIcon: document.getElementById('selectedVideoIcon'),
+  selectedVideoName: document.getElementById('selectedVideoName'),
+  selectedVideoInfo: document.getElementById('selectedVideoInfo'),
+  selectedVideoBadge: document.getElementById('selectedVideoBadge'),
+
+  // Completion Banner & Navigation Actions
+  completionBanner: document.getElementById('completionBanner'),
+  btnGoTheater: document.getElementById('btnGoTheater'),
+  btnGoAnalytics: document.getElementById('btnGoAnalytics'),
+  btnGoHighlights: document.getElementById('btnGoHighlights'),
+
+  // Quick Scrub Buttons
+  btnSyncRewind: document.getElementById('btnSyncRewind'),
+  btnSyncForward: document.getElementById('btnSyncForward'),
+
+  // Empty State CTAs
+  btnEmptyToStudio1: document.getElementById('btnEmptyToStudio1'),
+  btnEmptyToStudio2: document.getElementById('btnEmptyToStudio2'),
+
+  // Tab Notification Badges
+  badgeTheater: document.getElementById('badgeTheater'),
+  badgeAnalytics: document.getElementById('badgeAnalytics'),
+  badgeHeatmaps: document.getElementById('badgeHeatmaps'),
+  badgeHighlights: document.getElementById('badgeHighlights'),
 
   // Upload
   uploadDropZone: document.getElementById('uploadDropZone'),
@@ -150,11 +178,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   initVideoSync();
   initUploadZone();
   initSportRadios();
+  initQuickActions();
   renderStageSteps(BASKETBALL_STAGES); // Default
   await loadSystemInfo();
   await loadVideos();
   checkCurrentPipelineStatus();
 });
+
+// ========================== Quick Actions & Feedback ==========================
+function initQuickActions() {
+  if (elements.btnGoTheater) elements.btnGoTheater.addEventListener('click', () => switchTab('theater-pane'));
+  if (elements.btnGoAnalytics) elements.btnGoAnalytics.addEventListener('click', () => switchTab('analytics-pane'));
+  if (elements.btnGoHighlights) elements.btnGoHighlights.addEventListener('click', () => switchTab('highlights-pane'));
+
+  if (elements.btnEmptyToStudio1) elements.btnEmptyToStudio1.addEventListener('click', () => switchTab('studio-pane'));
+  if (elements.btnEmptyToStudio2) elements.btnEmptyToStudio2.addEventListener('click', () => switchTab('studio-pane'));
+}
+
+function setTabBadgesVisible(visible) {
+  const display = visible ? 'inline-block' : 'none';
+  if (elements.badgeTheater) elements.badgeTheater.style.display = display;
+  if (elements.badgeAnalytics) elements.badgeAnalytics.style.display = display;
+  if (elements.badgeHeatmaps) elements.badgeHeatmaps.style.display = display;
+  if (elements.badgeHighlights) elements.badgeHighlights.style.display = display;
+}
 
 // ========================== Toast Notifications ==========================
 function showToast(type, message) {
@@ -481,12 +528,32 @@ function onVideoSelectionChange() {
   const hasResults = selectedOpt.dataset.hasResults === "true";
   const videoSport = selectedOpt.dataset.sport || "unknown";
 
+  const rawFileName = selectedOpt.dataset.filename || (selectedOpt.value ? selectedOpt.value.split(/[\\/]/).pop() : "");
+  const sportIcon = videoSport === 'basketball' ? '🏀' : (videoSport === 'cricket' ? '🏏' : '🎬');
+
+  // Update Selected Video Status Card (Don Norman Feedforward & Visibility)
+  if (elements.selectedVideoCard && rawFileName) {
+    elements.selectedVideoCard.style.display = 'flex';
+    elements.selectedVideoIcon.textContent = sportIcon;
+    elements.selectedVideoName.textContent = rawFileName;
+    elements.selectedVideoInfo.textContent = `Sport: ${videoSport.toUpperCase()} • ${hasResults ? 'Analysis Ready' : 'Ready for Analysis'}`;
+  }
+
   if (hasResults) {
-    elements.hasSavedBadge.style.display = 'inline-flex';
-    elements.btnLoadSaved.style.display = 'inline-flex';
+    if (elements.hasSavedBadge) elements.hasSavedBadge.style.display = 'inline-flex';
+    if (elements.selectedVideoBadge) elements.selectedVideoBadge.style.display = 'inline-flex';
+    if (elements.loadSavedContainer) elements.loadSavedContainer.style.display = 'block';
+    if (elements.btnLoadSaved) elements.btnLoadSaved.style.display = 'inline-flex';
+    elements.btnRunPipeline.innerHTML = '<span>🔄</span> Re-run Analytics Pipeline';
+    setTabBadgesVisible(true);
   } else {
-    elements.hasSavedBadge.style.display = 'none';
-    elements.btnLoadSaved.style.display = 'none';
+    if (elements.hasSavedBadge) elements.hasSavedBadge.style.display = 'none';
+    if (elements.selectedVideoBadge) elements.selectedVideoBadge.style.display = 'none';
+    if (elements.loadSavedContainer) elements.loadSavedContainer.style.display = 'none';
+    if (elements.btnLoadSaved) elements.btnLoadSaved.style.display = 'none';
+    if (elements.completionBanner) elements.completionBanner.style.display = 'none';
+    elements.btnRunPipeline.innerHTML = '<span>▶</span> Run Analytics Pipeline';
+    setTabBadgesVisible(false);
 
     // Clear stale outputs from prior video (e.g. FIBA) so unanalyzed video is clean
     elements.annotatedVideoPlayer.removeAttribute('src');
@@ -511,7 +578,6 @@ function onVideoSelectionChange() {
   }
 
   // Set raw video source for preview
-  const rawFileName = selectedOpt.dataset.filename || (selectedOpt.value ? selectedOpt.value.split(/[\\/]/).pop() : "");
   if (rawFileName) {
     elements.rawVideoPlayer.src = `/api/video/raw/${encodeURIComponent(rawFileName)}`;
     elements.rawVideoPlayer.load();
@@ -688,15 +754,27 @@ function updateSportBadge(sport) {
   const badge = elements.sportBadge;
   badge.className = 'sport-badge';
   if (sport === 'basketball') {
-    badge.textContent = '🏀 Basketball';
+    badge.textContent = 'MODE // BASKETBALL';
     badge.classList.add('basketball');
   } else if (sport === 'cricket') {
-    badge.textContent = '🏏 Cricket';
+    badge.textContent = 'MODE // CRICKET';
     badge.classList.add('cricket');
   } else {
-    badge.textContent = '🏟️ Auto-Detect';
+    badge.textContent = 'MODE // AUTO_DETECT';
   }
 }
+
+// Enterprise Utility Ribbon Clock
+function updateUtilityClock() {
+  const el = document.getElementById('utilityTimestamp');
+  if (el) {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0];
+    el.textContent = `SYS_TIME: ${timeStr}`;
+  }
+}
+setInterval(updateUtilityClock, 1000);
+updateUtilityClock();
 
 // ========================== Pipeline Status Check ==========================
 async function checkCurrentPipelineStatus() {
@@ -742,6 +820,15 @@ async function fetchAndDisplayResults(videoStem) {
 
     renderTheaterFeatureCards(detectedSport);
     renderHighlightDescription(detectedSport);
+
+    // Don Norman Feedback: Signal to user that results are ready across the interface
+    if (elements.completionBanner) {
+      elements.completionBanner.style.display = 'flex';
+    }
+    setTabBadgesVisible(true);
+    if (elements.btnRunPipeline) {
+      elements.btnRunPipeline.innerHTML = '<span>🔄</span> Re-run Analytics Pipeline';
+    }
 
   } catch (err) {
     console.error('Failed to display results:', err);
@@ -1134,11 +1221,43 @@ function initVideoSync() {
     }
   });
 
+  if (elements.btnSyncRewind) {
+    elements.btnSyncRewind.addEventListener('click', () => {
+      const targetTime = Math.max(0, (vAnn.currentTime || 0) - 5);
+      vAnn.currentTime = targetTime;
+      vRaw.currentTime = targetTime;
+    });
+  }
+
+  if (elements.btnSyncForward) {
+    elements.btnSyncForward.addEventListener('click', () => {
+      const targetTime = Math.min(vAnn.duration || 9999, (vAnn.currentTime || 0) + 5);
+      vAnn.currentTime = targetTime;
+      vRaw.currentTime = targetTime;
+    });
+  }
+
   vAnn.addEventListener('seeking', () => {
     if (!isSyncingVideos) {
       isSyncingVideos = true;
-      vRaw.currentTime = vAnn.currentTime;
-      isSyncingVideos = false;
+      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
+        vRaw.currentTime = (vAnn.currentTime / vAnn.duration) * vRaw.duration;
+      } else {
+        vRaw.currentTime = vAnn.currentTime;
+      }
+      setTimeout(() => { isSyncingVideos = false; }, 50);
+    }
+  });
+
+  vRaw.addEventListener('seeking', () => {
+    if (!isSyncingVideos) {
+      isSyncingVideos = true;
+      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
+        vAnn.currentTime = (vRaw.currentTime / vRaw.duration) * vAnn.duration;
+      } else {
+        vAnn.currentTime = vRaw.currentTime;
+      }
+      setTimeout(() => { isSyncingVideos = false; }, 50);
     }
   });
 

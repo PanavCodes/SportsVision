@@ -19,21 +19,37 @@
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- Enterprise Utility Ribbon (Salesforce / Operations Console) -->
+  <div class="enterprise-utility-bar">
+    <div class="utility-left">
+      <span class="utility-brand">SPORTSVISION ENTERPRISE</span>
+      <span class="utility-divider">/</span>
+      <span class="utility-sub">CV_SPATIAL_INTELLIGENCE_OPS</span>
+      <span class="utility-divider">/</span>
+      <span class="utility-version">v3.4.2_LTS</span>
+    </div>
+    <div class="utility-right">
+      <span class="utility-chip">ENV: LOCAL_CUDA</span>
+      <span class="utility-chip active">ENGINE: ACTIVE</span>
+      <span class="utility-timestamp" id="utilityTimestamp">SYS_TIME: 21:40:00</span>
+    </div>
+  </div>
+
   <!-- App Header -->
   <header class="app-header">
     <div class="brand-section">
-      <div class="brand-icon-wrapper">🏟️</div>
+      <div class="brand-icon-wrapper">SV</div>
       <div>
-        <h1 class="brand-title">SportsVision</h1>
-        <div class="brand-subtitle">AI-Powered Multi-Sport Analytics v3.0</div>
+        <h1 class="brand-title">SPORTSVISION</h1>
+        <div class="brand-subtitle">SPATIAL COMPUTING & COMPUTER VISION STUDIO</div>
       </div>
     </div>
 
     <div class="header-status">
-      <span class="sport-badge" id="sportBadge">🏟️ Auto-Detect</span>
+      <span class="sport-badge" id="sportBadge">MODE // AUTO_DETECT</span>
       <div class="system-pill" id="systemPill">
         <span class="status-dot" id="systemStatusDot"></span>
-        <span id="systemGpuText">Detecting Hardware...</span>
+        <span id="systemGpuText" style="font-family: var(--font-mono);">DETECTING_HARDWARE...</span>
       </div>
     </div>
   </header>
@@ -41,19 +57,19 @@
   <!-- Navigation Tabs -->
   <nav class="app-nav">
     <button class="nav-tab-btn active" data-target="studio-pane" id="tabStudio">
-      <span>🚀</span> Pipeline Studio
+      <span class="nav-num">[01]</span> PIPELINE_STUDIO
     </button>
     <button class="nav-tab-btn" data-target="theater-pane" id="tabTheater">
-      <span>🎬</span> Video Theater
+      <span class="nav-num">[02]</span> VIDEO_THEATER <span class="nav-tab-badge" id="badgeTheater" style="display: none;"></span>
     </button>
     <button class="nav-tab-btn" data-target="analytics-pane" id="tabAnalytics">
-      <span>📊</span> Game Analytics
+      <span class="nav-num">[03]</span> GAME_ANALYTICS <span class="nav-tab-badge" id="badgeAnalytics" style="display: none;"></span>
     </button>
     <button class="nav-tab-btn" data-target="heatmaps-pane" id="tabHeatmaps">
-      <span>🌡️</span> Spatial Heatmaps
+      <span class="nav-num">[04]</span> SPATIAL_HEATMAPS <span class="nav-tab-badge" id="badgeHeatmaps" style="display: none;"></span>
     </button>
     <button class="nav-tab-btn" data-target="highlights-pane" id="tabHighlights">
-      <span>🌟</span> Highlight Reel
+      <span class="nav-num">[05]</span> HIGHLIGHT_REEL <span class="nav-tab-badge" id="badgeHighlights" style="display: none;"></span>
     </button>
   </nav>
 
@@ -73,162 +89,205 @@
             <span class="badge badge-ready" id="hasSavedBadge" style="display: none;">Analysis Available</span>
           </div>
 
-          <!-- Drag & Drop Upload Zone -->
-          <div class="form-group">
-            <div class="upload-drop-zone" id="uploadDropZone">
-              <input type="file" id="videoUploadInput" accept="video/*" style="display: none;">
-              <div class="upload-icon">📁</div>
-              <div class="upload-text-main">Drag & Drop Video Here</div>
-              <div class="upload-text-sub">or click to browse</div>
-              <div class="upload-formats">Supports: MP4, MOV, AVI, MKV, M4V (max 2GB)</div>
-              <div class="upload-progress-wrapper" id="uploadProgressWrapper" style="display: none;">
-                <div class="progress-track" style="height: 6px; margin-top: 14px;">
-                  <div class="progress-fill" id="uploadProgressFill" style="width: 0%;"></div>
+          <!-- STEP 1: Choose Footage -->
+          <div class="studio-step">
+            <div class="step-indicator">
+              <span class="step-number">1</span>
+              <span class="step-title">Choose Footage</span>
+              <span class="step-subtitle">Upload or Pick</span>
+            </div>
+
+            <!-- Drag & Drop Upload Zone -->
+            <div class="form-group" style="margin-bottom: 12px;">
+              <div class="upload-drop-zone" id="uploadDropZone">
+                <input type="file" id="videoUploadInput" accept="video/*" style="display: none;">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text-main">Drag & Drop Video Here</div>
+                <div class="upload-text-sub">or click to browse from device</div>
+                <div class="upload-formats">MP4, MOV, AVI, MKV (max 2GB)</div>
+                <div class="upload-progress-wrapper" id="uploadProgressWrapper" style="display: none;">
+                  <div class="progress-track" style="height: 6px; margin-top: 14px;">
+                    <div class="progress-fill" id="uploadProgressFill" style="width: 0%;"></div>
+                  </div>
+                  <div class="upload-progress-text" id="uploadProgressText"></div>
                 </div>
-                <div class="upload-progress-text" id="uploadProgressText"></div>
               </div>
             </div>
-          </div>
 
-          <!-- Video Selector -->
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label class="form-label" for="videoSelect" style="margin-bottom: 0;">Or Select From Library</label>
-              <button class="btn btn-secondary" id="refreshVideosBtn" style="padding: 4px 8px; font-size: 0.75rem;" title="Refresh Video List">🔄</button>
+            <!-- Video Selector Dropdown -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" for="videoSelect" style="margin-bottom: 0;">Select From Library</label>
+                <button class="btn btn-secondary" id="refreshVideosBtn" style="padding: 3px 8px; font-size: 0.72rem;" title="Refresh Video List">🔄 Refresh</button>
+              </div>
+              <select class="form-select" id="videoSelect">
+                <option value="">Loading videos...</option>
+              </select>
             </div>
-            <select class="form-select" id="videoSelect">
-              <option value="">Loading videos...</option>
-            </select>
-          </div>
 
-          <!-- Sport Override -->
-          <div class="form-group">
-            <label class="form-label">Sport Detection Mode</label>
-            <div class="sport-radio-group">
-              <label class="sport-radio active" data-sport="auto">
-                <input type="radio" name="sportOverride" value="auto" checked>
-                <span class="sport-radio-icon">🏟️</span>
-                <span class="sport-radio-label">Auto-Detect</span>
-              </label>
-              <label class="sport-radio" data-sport="basketball">
-                <input type="radio" name="sportOverride" value="basketball">
-                <span class="sport-radio-icon">🏀</span>
-                <span class="sport-radio-label">Basketball</span>
-              </label>
-              <label class="sport-radio" data-sport="cricket">
-                <input type="radio" name="sportOverride" value="cricket">
-                <span class="sport-radio-icon">🏏</span>
-                <span class="sport-radio-label">Cricket</span>
-              </label>
+            <!-- Selected Video Summary Pill -->
+            <div class="selected-video-card" id="selectedVideoCard" style="display: none;">
+              <div class="selected-video-icon" id="selectedVideoIcon">🎬</div>
+              <div class="selected-video-meta">
+                <div class="selected-video-name" id="selectedVideoName">video.mp4</div>
+                <div class="selected-video-info" id="selectedVideoInfo">Ready for analysis</div>
+              </div>
+              <span class="badge badge-ready" id="selectedVideoBadge" style="display: none;">Analyzed</span>
             </div>
           </div>
 
-          <!-- GPU Hardware Optimization Profile -->
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label class="form-label" style="margin-bottom: 0;">GPU Hardware Profile</label>
-              <span class="badge badge-ready" id="activeGpuBadge" style="font-size: 0.7rem; padding: 2px 8px;">RTX 3050 (6GB)</span>
+          <!-- STEP 2: Configure Analytics & Hardware -->
+          <div class="studio-step">
+            <div class="step-indicator">
+              <span class="step-number">2</span>
+              <span class="step-title">Scope & Hardware</span>
+              <span class="step-subtitle">Auto-Tuned</span>
             </div>
-            <div class="hardware-grid">
-              <div class="hardware-card" data-gpu="mx450">
-                <div class="hardware-card-top">
-                  <span class="hardware-card-icon">💻</span>
-                  <span class="hardware-card-title">MX450</span>
+
+            <!-- Sport Override -->
+            <div class="form-group">
+              <label class="form-label">Sport Mode</label>
+              <div class="sport-radio-group">
+                <label class="sport-radio active" data-sport="auto">
+                  <input type="radio" name="sportOverride" value="auto" checked>
+                  <span class="sport-radio-icon">🏟️</span>
+                  <span class="sport-radio-label">Auto-Detect</span>
+                </label>
+                <label class="sport-radio" data-sport="basketball">
+                  <input type="radio" name="sportOverride" value="basketball">
+                  <span class="sport-radio-icon">🏀</span>
+                  <span class="sport-radio-label">Basketball</span>
+                </label>
+                <label class="sport-radio" data-sport="cricket">
+                  <input type="radio" name="sportOverride" value="cricket">
+                  <span class="sport-radio-icon">🏏</span>
+                  <span class="sport-radio-label">Cricket</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Analysis Presets -->
+            <div class="form-group">
+              <label class="form-label">Analysis Scope</label>
+              <div class="presets-grid">
+                <div class="preset-chip active" data-preset="quick">
+                  <span class="preset-name">⚡ Quick Demo</span>
+                  <span class="preset-desc">150 frames (~5s)</span>
                 </div>
-                <div class="hardware-card-vram">2 GB VRAM</div>
-                <div class="hardware-card-stats">Batch: 1 • Skip: 2</div>
-                <div class="hardware-card-tag">Zero-OOM Safe</div>
-              </div>
-
-              <div class="hardware-card active" data-gpu="rtx3050">
-                <div class="hardware-card-top">
-                  <span class="hardware-card-icon">🚀</span>
-                  <span class="hardware-card-title">RTX 3050</span>
+                <div class="preset-chip" data-preset="standard">
+                  <span class="preset-name">🎯 Full Play</span>
+                  <span class="preset-desc">300 frames (~12s)</span>
                 </div>
-                <div class="hardware-card-vram">6 GB VRAM</div>
-                <div class="hardware-card-stats">Batch: 6 • Skip: 1</div>
-                <div class="hardware-card-tag">Balanced Perf</div>
-              </div>
-
-              <div class="hardware-card" data-gpu="rtx4060">
-                <div class="hardware-card-top">
-                  <span class="hardware-card-icon">🔥</span>
-                  <span class="hardware-card-title">RTX 4060</span>
+                <div class="preset-chip" data-preset="full">
+                  <span class="preset-name">🏆 Full Match</span>
+                  <span class="preset-desc">All frames</span>
                 </div>
-                <div class="hardware-card-vram">8+ GB VRAM</div>
-                <div class="hardware-card-stats">Batch: 16 • Skip: 1</div>
-                <div class="hardware-card-tag">Max Speed</div>
               </div>
             </div>
-          </div>
 
-          <!-- Presets for fast demonstration -->
-          <div class="form-group">
-            <label class="form-label">Processing Presets</label>
-            <div class="presets-grid">
-              <div class="preset-chip active" data-preset="quick">
-                <span class="preset-name">Quick Demo</span>
-                <span class="preset-desc">150 frames (~5s)</span>
+            <!-- GPU Hardware Profile -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="form-label" style="margin-bottom: 0;">GPU Optimization Profile</label>
+                <span class="badge badge-ready" id="activeGpuBadge" style="font-size: 0.7rem; padding: 2px 8px;">RTX 3050 (6GB)</span>
               </div>
-              <div class="preset-chip" data-preset="standard">
-                <span class="preset-name">Full Play</span>
-                <span class="preset-desc">300 frames (~12s)</span>
-              </div>
-              <div class="preset-chip" data-preset="full">
-                <span class="preset-name">Full Game</span>
-                <span class="preset-desc">All frames</span>
+              <div class="hardware-grid">
+                <div class="hardware-card" data-gpu="mx450">
+                  <div class="hardware-card-top">
+                    <span class="hardware-card-icon">💻</span>
+                    <span class="hardware-card-title">MX450</span>
+                  </div>
+                  <div class="hardware-card-vram">2 GB VRAM</div>
+                  <div class="hardware-card-stats">Batch: 1 • Skip: 2</div>
+                  <div class="hardware-card-tag">Zero-OOM Safe</div>
+                </div>
+
+                <div class="hardware-card active" data-gpu="rtx3050">
+                  <div class="hardware-card-top">
+                    <span class="hardware-card-icon">🚀</span>
+                    <span class="hardware-card-title">RTX 3050</span>
+                  </div>
+                  <div class="hardware-card-vram">6 GB VRAM</div>
+                  <div class="hardware-card-stats">Batch: 6 • Skip: 1</div>
+                  <div class="hardware-card-tag">Balanced Perf</div>
+                </div>
+
+                <div class="hardware-card" data-gpu="rtx4060">
+                  <div class="hardware-card-top">
+                    <span class="hardware-card-icon">🔥</span>
+                    <span class="hardware-card-title">RTX 4060</span>
+                  </div>
+                  <div class="hardware-card-vram">8+ GB VRAM</div>
+                  <div class="hardware-card-stats">Batch: 16 • Skip: 1</div>
+                  <div class="hardware-card-tag">Max Speed</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Custom Parameter Tuning -->
-          <div class="form-group">
-            <label class="form-label" for="inputMaxFrames">Max Frames (Blank = Entire Video)</label>
-            <input type="number" class="form-control" id="inputMaxFrames" placeholder="e.g. 150" value="150">
-          </div>
+            <!-- Progressive Disclosure: Advanced Engine Tuning Drawer -->
+            <details class="advanced-settings-drawer">
+              <summary class="advanced-settings-summary">
+                <span>⚙️</span> Advanced Engine Tuning (Batch, Skip & SAM2)
+              </summary>
+              <div class="advanced-settings-content">
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label" for="inputMaxFrames" style="font-size: 0.78rem;">Custom Max Frames (Blank = Entire Video)</label>
+                  <input type="number" class="form-control" id="inputMaxFrames" placeholder="e.g. 150" value="150" style="padding: 6px 10px; font-size: 0.82rem;">
+                </div>
 
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" for="inputFrameSkip" style="margin-bottom: 0;">Frame Skip</label>
-              <span style="font-size: 0.72rem; color: var(--text-muted);" id="frameSkipHint">1 = Every Frame</span>
-            </div>
-            <input type="number" class="form-control" id="inputFrameSkip" value="1" min="1" max="10">
-          </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label class="form-label" for="inputFrameSkip" style="margin-bottom: 0; font-size: 0.78rem;">Frame Skip</label>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);" id="frameSkipHint">1 = Every Frame</span>
+                  </div>
+                  <input type="number" class="form-control" id="inputFrameSkip" value="1" min="1" max="10" style="padding: 6px 10px; font-size: 0.82rem;">
+                </div>
 
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" for="inputBatchSize" style="margin-bottom: 0;">Batch Size</label>
-              <span style="font-size: 0.72rem; color: var(--text-muted);" id="batchSizeHint">6GB VRAM: 6</span>
-            </div>
-            <input type="number" class="form-control" id="inputBatchSize" value="6" min="1" max="250">
-          </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label class="form-label" for="inputBatchSize" style="margin-bottom: 0; font-size: 0.78rem;">Batch Size</label>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);" id="batchSizeHint">6GB VRAM: 6</span>
+                  </div>
+                  <input type="number" class="form-control" id="inputBatchSize" value="6" min="1" max="250" style="padding: 6px 10px; font-size: 0.82rem;">
+                </div>
 
-          <!-- SAM2 Instance Segmentation Toggle -->
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
-              <div>
-                <label class="form-label" for="inputUseSam2" style="margin-bottom: 2px; cursor: pointer;">SAM2 AI Segmentation</label>
-                <div style="font-size: 0.72rem; color: var(--text-muted);" id="sam2StatusText">Player masks • Auto-disabled on 2GB MX450</div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <div>
+                      <label class="form-label" for="inputUseSam2" style="margin-bottom: 2px; cursor: pointer; font-size: 0.78rem;">SAM2 AI Segmentation</label>
+                      <div style="font-size: 0.68rem; color: var(--text-muted);" id="sam2StatusText">Player masks • Auto-disabled on 2GB MX450</div>
+                    </div>
+                    <input type="checkbox" id="inputUseSam2" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-cyan);">
+                  </div>
+                </div>
               </div>
-              <input type="checkbox" id="inputUseSam2" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-cyan);">
+            </details>
+          </div>
+
+          <!-- STEP 3: Execute Analysis -->
+          <div class="studio-step">
+            <div class="step-indicator">
+              <span class="step-number">3</span>
+              <span class="step-title">Execute Analysis</span>
+              <span class="step-subtitle">Action</span>
             </div>
-          </div>
 
-          <!-- Action Buttons -->
-          <div class="action-buttons">
-            <button class="btn btn-primary" id="btnRunPipeline">
-              <span>▶</span> Run Analytics Pipeline
-            </button>
-            <button class="btn btn-danger" id="btnStopPipeline" style="display: none;">
-              <span>⏹</span> Stop
-            </button>
-          </div>
+            <!-- Instant Load Button for Previously Analyzed Videos -->
+            <div id="loadSavedContainer" style="margin-bottom: 10px; display: none;">
+              <button class="btn btn-secondary" id="btnLoadSaved" style="width: 100%; border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 600;">
+                ⚡ View Pre-Computed Analysis (Instant)
+              </button>
+            </div>
 
-          <!-- Instant Load Button for Showcases -->
-          <div style="margin-top: 12px;">
-            <button class="btn btn-secondary" id="btnLoadSaved" style="width: 100%; display: none; border-color: var(--accent-cyan); color: var(--accent-cyan);">
-              ⚡ View Pre-Computed Analysis Now
-            </button>
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+              <button class="btn btn-primary" id="btnRunPipeline" style="width: 100%;">
+                <span>▶</span> Run Analytics Pipeline
+              </button>
+              <button class="btn btn-danger" id="btnStopPipeline" style="display: none; width: 100%;">
+                <span>⏹</span> Abort Pipeline Run
+              </button>
+            </div>
           </div>
         </div>
 
@@ -239,6 +298,30 @@
               <span class="panel-title-icon">📊</span> Pipeline Execution Monitor
             </h2>
             <span class="badge badge-running" id="metricStageName">Idle</span>
+          </div>
+
+          <!-- Celebratory Completion Banner (Don Norman Feedback & Direct Action) -->
+          <div class="completion-banner" id="completionBanner" style="display: none;">
+            <div class="completion-banner-top">
+              <div class="completion-banner-title">
+                <span>🎉</span> Analysis Ready! Spatial Intelligence Computed
+              </div>
+              <span class="badge badge-ready">Complete</span>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary);">
+              Trajectories, 3D speed kinematics, tactical heatmaps, and stats are now loaded.
+            </div>
+            <div class="completion-banner-actions">
+              <button class="completion-cta-btn primary" id="btnGoTheater">
+                <span>🎬</span> Watch Synchronized Video
+              </button>
+              <button class="completion-cta-btn" id="btnGoAnalytics">
+                <span>📊</span> Game Analytics
+              </button>
+              <button class="completion-cta-btn" id="btnGoHighlights">
+                <span>🌟</span> Highlights
+              </button>
+            </div>
           </div>
 
           <!-- Dynamic Stage Stepper -->
@@ -337,24 +420,35 @@
 
       </div>
 
-      <!-- Synchronized Video Controls -->
-      <div class="playback-controls-bar">
-        <button class="btn btn-primary" id="btnPlayPauseSync">
-          <span id="syncPlayIcon">▶ Play Synchronized</span>
-        </button>
-
-        <div style="font-family: var(--font-mono); font-size: 0.9rem;" id="syncTimeDisplay">
-          00:00 / 00:00
+      <!-- Synchronized Video Master Controls (Don Norman Natural Mapping & Clear Affordance) -->
+      <div class="master-sync-bar">
+        <div class="sync-status-indicator">
+          <span class="sync-pulse-dot"></span>
+          <span><strong>Master Control:</strong> Playing Raw & AI Feeds in Lockstep</span>
         </div>
 
         <div style="display: flex; align-items: center; gap: 8px;">
-          <label style="font-size: 0.85rem; color: var(--text-secondary);">Speed:</label>
-          <select class="form-select" id="playbackSpeedSelect" style="width: auto; padding: 6px 10px;">
-            <option value="0.5">0.5x Slow-Mo</option>
-            <option value="1.0" selected>1.0x Real-time</option>
-            <option value="1.5">1.5x</option>
-            <option value="2.0">2.0x Fast</option>
-          </select>
+          <button class="sync-scrub-btn" id="btnSyncRewind" title="Rewind 5 Seconds">⏮ -5s</button>
+          <button class="btn btn-primary" id="btnPlayPauseSync" style="padding: 8px 18px;">
+            <span id="syncPlayIcon">▶ Play Synchronized</span>
+          </button>
+          <button class="sync-scrub-btn" id="btnSyncForward" title="Forward 5 Seconds">⏭ +5s</button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="font-family: var(--font-mono); font-size: 0.9rem;" id="syncTimeDisplay">
+            00:00 / 00:00
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 0.82rem; color: var(--text-secondary);">Speed:</label>
+            <select class="form-select" id="playbackSpeedSelect" style="width: auto; padding: 4px 8px; font-size: 0.8rem;">
+              <option value="0.5">0.5x Slow-Mo</option>
+              <option value="1.0" selected>1.0x Real-time</option>
+              <option value="1.5">1.5x</option>
+              <option value="2.0">2.0x Fast</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -625,11 +719,14 @@
 
       </div>
 
-      <!-- No Data Placeholder -->
+      <!-- No Data Placeholder (Don Norman: Feedforward CTA) -->
       <div class="empty-state" id="analyticsPlaceholder">
         <div class="empty-state-icon">📊</div>
         <h3>No Analytics Data Yet</h3>
         <p>Upload a video and run the pipeline, or select a previously analyzed video to view statistics.</p>
+        <button class="completion-cta-btn primary" id="btnEmptyToStudio1" style="margin-top: 14px;">
+          <span>🚀</span> Go to Pipeline Studio to Analyze Video
+        </button>
       </div>
 
     </section>
@@ -640,6 +737,9 @@
         <div class="empty-state-icon">🌡️</div>
         <h3>No Heatmaps Generated Yet</h3>
         <p>Run the pipeline or select an analyzed video to view spatial coverage visualizations.</p>
+        <button class="completion-cta-btn primary" id="btnEmptyToStudio2" style="margin-top: 14px;">
+          <span>🚀</span> Go to Pipeline Studio to Analyze Video
+        </button>
       </div>
 
       <!-- Basketball Heatmaps -->

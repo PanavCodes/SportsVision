@@ -407,7 +407,8 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
                 ground_trail=ground_trail,
                 ground_player_positions=ground_players
             )
-            out_video.write(annotated_frame)
+            for _ in range(FRAME_SKIP if FRAME_SKIP > 1 else 1):
+                out_video.write(annotated_frame)
 
             # Finalize completed delivery, reset trajectory, advance over
             if is_completed:
@@ -439,6 +440,7 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
                 )
                 delivery_number += 1
                 trajectory_analyzer.reset_delivery()
+                detector.reset_ball_position()
                 ball_metric_coords.clear()
                 curr_delivery_ball_tracks.clear()
                 curr_delivery_player_tracks.clear()

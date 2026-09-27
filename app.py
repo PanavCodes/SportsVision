@@ -339,12 +339,22 @@ class PipelineManager:
 
     def stop_pipeline(self):
         if self.process and self.is_running:
-            self.append_log("\n[!] User requested pipeline abort. Terminating process...")
-            self.process.terminate()
+            self.append_log("\n[!] User requested pipeline abort. Terminating process tree...")
             try:
-                self.process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
+                if sys.platform == "win32":
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(self.process.pid)],
+                        capture_output=True
+                    )
+                else:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+            except Exception as e:
+                self.append_log(f"[Abort Warning] {e}")
+
             self.is_running = False
             self.status["is_running"] = False
             self.status["stage_name"] = "Aborted by User"

@@ -153,7 +153,8 @@ class CricketSpeedCalculator:
         # 3. Estimate Release Speed (early phase of trajectory)
         early_window = min(5, len(speeds))
         release_speed = float(np.percentile(speeds[:early_window], 75)) if early_window > 1 else speeds[0]
-        release_speed = float(np.clip(release_speed, 70.0, 160.0))
+        # Support full spectrum from slow/spin deliveries (40-70 km/h) to express pace (140-160 km/h)
+        release_speed = float(np.clip(release_speed, 40.0, 160.0))
 
         # 4. Estimate Bounce Speed (post-pitch phase)
         nominal_restitution = 0.85  # ~15% deceleration on grass pitch
@@ -165,7 +166,7 @@ class CricketSpeedCalculator:
             if post_bounce_speeds:
                 raw_bounce_speed = float(np.median(post_bounce_speeds))
 
-        if raw_bounce_speed is not None and 50.0 <= raw_bounce_speed < release_speed:
+        if raw_bounce_speed is not None and 30.0 <= raw_bounce_speed < release_speed:
             bounce_speed = min(raw_bounce_speed, release_speed * 0.90)
         else:
             bounce_speed = release_speed * nominal_restitution

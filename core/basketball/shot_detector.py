@@ -13,15 +13,14 @@ class CourtVisionShotDetector:
         self.shot_events = []
         self.frame_confidences = []
         
-        # History of ball coordinates: list of (x, y)
+        # Dynamic frame counter for non-uniform interval tracking
+        self.current_frame_idx = 0
+        
+        # History of ball coordinates: list of (frame_idx, x, y)
         self.ball_history = deque(maxlen=45)
         
-        # Define approximate hoop regions [x1, y1, x2, y2]
-        # (Assuming 1920x1080 resolution, hoops are on the far left and right, around y=350)
-        self.hoop_regions = [
-            [50, 250, 250, 450],      # Left hoop
-            [1650, 250, 1850, 450]    # Right hoop
-        ]
+        # Default nominal hoop regions will be scaled dynamically to frame resolution
+        self.hoop_regions = []
         
         self.is_shot_active = False
         self.shot_start_frame = -1
@@ -37,25 +36,30 @@ class CourtVisionShotDetector:
         batch_confs = [0.0] * len(frames)
         
         for idx, (frame, ball_track, p_trk) in enumerate(zip(frames, ball_tracks, player_tracks)):
+            self.current_frame_idx += 1
             conf = 0.0
+            h_img, w_img = frame.shape[:2]
+            
+            # Dynamically compute hoop bounding boxes for current frame resolution
+            hoop_regions = [
+                [int(0.02 * w_img), int(0.22 * h_img), int(0.16 * w_img), int(0.48 * h_img)],  # Left hoop
+                [int(0.84 * w_img), int(0.22 * h_img), int(0.98 * w_img), int(0.48 * h_img)]   # Right hoop
+            ]
+            hoop_bottom_y = int(0.48 * h_img)
             
             if 1 in ball_track:
                 bbox = ball_track[1]['bbox']
                 x_c = (bbox[0] + bbox[2]) / 2.0
                 y_c = (bbox[1] + bbox[3]) / 2.0
-                self.ball_history.append((x_c, y_c))
-            else:
-                # If we lose the ball, we can maintain history by not clearing it immediately,
-                # but let's just append None or skip. Skipping means t is not strictly frame index, 
-                # but sequential order. Let's just not append.
-                pass
+                self.ball_history.append((self.current_frame_idx, x_c, y_c))
                 
             # Need at least 15 points to fit a reliable parabola
             if len(self.ball_history) > 15:
                 pts = list(self.ball_history)
-                t = np.arange(len(pts))
-                x = np.array([p[0] for p in pts])
-                y = np.array([p[1] for p in pts])
+                # Use actual frame deltas for t to correctly handle missed/dropped detection frames
+                t = np.array([p[0] - pts[0][0] for p in pts], dtype=np.float64)
+                x = np.array([p[1] for p in pts], dtype=np.float64)
+                y = np.array([p[2] for p in pts], dtype=np.float64)
                 
                 # Fit y(t) = a*t^2 + b*t + c
                 # In image coordinates, y increases downwards.
@@ -72,20 +76,20 @@ class CourtVisionShotDetector:
                 r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
                 
                 # A valid shot has a > 0 (opens upwards in image coords) and high R^2
-                if a > 0.5 and r_squared > 0.8:
+                if a > 0.1 and r_squared > 0.8:
                     self.is_shot_active = True
                     
                     # Find apex (t = -b / 2a)
                     apex_t = -b / (2 * a)
                     
                     # If we have passed the apex and are descending
-                    if apex_t < len(pts) - 1:
+                    if apex_t < t[-1]:
                         # Check where the latest point is
-                        last_x, last_y = pts[-1]
+                        _, last_x, last_y = pts[-1]
                         
                         # See if it intersects a hoop
                         is_make = False
-                        for h in self.hoop_regions:
+                        for h in hoop_regions:
                             hx1, hy1, hx2, hy2 = h
                             if hx1 <= last_x <= hx2 and hy1 <= last_y <= hy2:
                                 is_make = True
@@ -97,7 +101,7 @@ class CourtVisionShotDetector:
                         else:
                             # It's falling, but not in a hoop. Could be a miss or a pass.
                             # We'll conservatively call it a MISS if it drops below the hoop level.
-                            if last_y > 450: 
+                            if last_y > hoop_bottom_y: 
                                 self.current_shot_result = "MISS"
                                 conf = 0.5
                             else:

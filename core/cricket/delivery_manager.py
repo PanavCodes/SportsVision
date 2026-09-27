@@ -120,6 +120,9 @@ class DeliveryLifecycleManager:
         """Forces completion at video end if a delivery was in progress."""
         if self.state == DeliveryState.IN_FLIGHT and self.active_delivery_frames >= 4:
             self._advance_delivery()
+            if self.balls_in_current_over >= 6:
+                self.overs_completed += 1
+                self.balls_in_current_over = 0
             self.state = DeliveryState.IDLE
             return True
         return False

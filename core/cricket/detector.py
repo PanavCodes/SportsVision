@@ -73,10 +73,16 @@ class CricketDetector:
         self.player_confidence = getattr(config, 'CRICKET_PLAYER_CONFIDENCE', 0.30)
         self.clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
         self.prev_ball_pos = None
+        self.ball_lost_streak = 0
 
         # Cache for roles (batsman, bowler, keeper, umpire)
         self.role_assignments = {}
         self.role_votes = defaultdict(lambda: defaultdict(int))
+
+    def reset_ball_position(self):
+        """Reset ball positional history across deliveries or camera transitions."""
+        self.prev_ball_pos = None
+        self.ball_lost_streak = 0
 
     def _configure_model(self, model):
         """Send model to target device and enable FP16 if supported."""
@@ -159,6 +165,11 @@ class CricketDetector:
                     candidates.sort(key=lambda c: c[1], reverse=True)
                     best_ball_box, best_ball_conf, best_ball_center = candidates[0]
                     self.prev_ball_pos = best_ball_center
+                    self.ball_lost_streak = 0
+                else:
+                    self.ball_lost_streak += 1
+                    if self.ball_lost_streak >= 5:
+                        self.prev_ball_pos = None
 
             if best_ball_box is not None:
                 cx = int((best_ball_box[0] + best_ball_box[2]) / 2)
