@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CourtVision 🏀 Spatial Analytics Engine</title>
-  <meta name="description" content="End-to-end computer vision and spatial analytics engine for basketball broadcast video.">
+  <title>SportsVision 🏟️ Multi-Sport AI Analytics Engine</title>
+  <meta name="description" content="End-to-end AI-powered computer vision and spatial analytics engine for basketball and cricket broadcast video analysis.">
   
   <!-- Modern Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,17 +16,21 @@
 </head>
 <body>
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
   <!-- App Header -->
   <header class="app-header">
     <div class="brand-section">
-      <div class="brand-icon-wrapper">🏀</div>
+      <div class="brand-icon-wrapper">🏟️</div>
       <div>
-        <h1 class="brand-title">CourtVision</h1>
-        <div class="brand-subtitle">Spatial Analytics Engine v2.0</div>
+        <h1 class="brand-title">SportsVision</h1>
+        <div class="brand-subtitle">AI-Powered Multi-Sport Analytics v3.0</div>
       </div>
     </div>
 
     <div class="header-status">
+      <span class="sport-badge" id="sportBadge">🏟️ Auto-Detect</span>
       <div class="system-pill" id="systemPill">
         <span class="status-dot" id="systemStatusDot"></span>
         <span id="systemGpuText">Detecting Hardware...</span>
@@ -69,10 +73,27 @@
             <span class="badge badge-ready" id="hasSavedBadge" style="display: none;">Analysis Available</span>
           </div>
 
+          <!-- Drag & Drop Upload Zone -->
+          <div class="form-group">
+            <div class="upload-drop-zone" id="uploadDropZone">
+              <input type="file" id="videoUploadInput" accept="video/*" style="display: none;">
+              <div class="upload-icon">📁</div>
+              <div class="upload-text-main">Drag & Drop Video Here</div>
+              <div class="upload-text-sub">or click to browse</div>
+              <div class="upload-formats">Supports: MP4, MOV, AVI, MKV, M4V (max 2GB)</div>
+              <div class="upload-progress-wrapper" id="uploadProgressWrapper" style="display: none;">
+                <div class="progress-track" style="height: 6px; margin-top: 14px;">
+                  <div class="progress-fill" id="uploadProgressFill" style="width: 0%;"></div>
+                </div>
+                <div class="upload-progress-text" id="uploadProgressText"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Video Selector -->
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label class="form-label" for="videoSelect" style="margin-bottom: 0;">Select Game Video</label>
+              <label class="form-label" for="videoSelect" style="margin-bottom: 0;">Or Select From Library</label>
               <button class="btn btn-secondary" id="refreshVideosBtn" style="padding: 4px 8px; font-size: 0.75rem;" title="Refresh Video List">🔄</button>
             </div>
             <select class="form-select" id="videoSelect">
@@ -80,17 +101,31 @@
             </select>
           </div>
 
-          <!-- Upload New Video -->
+          <!-- Sport Override -->
           <div class="form-group">
-            <input type="file" id="videoUploadInput" accept="video/*" style="display: none;">
-            <button class="btn btn-secondary" id="uploadBtn" style="width: 100%; font-size: 0.85rem;">
-              📁 Upload New Basketball Video
-            </button>
+            <label class="form-label">Sport Detection Mode</label>
+            <div class="sport-radio-group">
+              <label class="sport-radio active" data-sport="auto">
+                <input type="radio" name="sportOverride" value="auto" checked>
+                <span class="sport-radio-icon">🏟️</span>
+                <span class="sport-radio-label">Auto-Detect</span>
+              </label>
+              <label class="sport-radio" data-sport="basketball">
+                <input type="radio" name="sportOverride" value="basketball">
+                <span class="sport-radio-icon">🏀</span>
+                <span class="sport-radio-label">Basketball</span>
+              </label>
+              <label class="sport-radio" data-sport="cricket">
+                <input type="radio" name="sportOverride" value="cricket">
+                <span class="sport-radio-icon">🏏</span>
+                <span class="sport-radio-label">Cricket</span>
+              </label>
+            </div>
           </div>
 
           <!-- Presets for fast demonstration -->
           <div class="form-group">
-            <label class="form-label">Demonstration Presets</label>
+            <label class="form-label">Processing Presets</label>
             <div class="presets-grid">
               <div class="preset-chip active" data-preset="quick">
                 <span class="preset-name">Quick Demo</span>
@@ -119,33 +154,8 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="inputBatchSize">Batch Size (Optimized for MX450 / 8GB VRAM)</label>
+            <label class="form-label" for="inputBatchSize">Batch Size (Tuned for RTX 4060 / 8GB VRAM)</label>
             <input type="number" class="form-control" id="inputBatchSize" value="4" min="1" max="250">
-          </div>
-
-          <!-- AI Feature Details -->
-          <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color);">
-            <div class="toggle-row">
-              <div class="toggle-label-group">
-                <span class="toggle-title">SAM2 Player Segmentation</span>
-                <span class="toggle-subtitle">Meta SAM2 pixel masks</span>
-              </div>
-              <span class="badge badge-ready">Active</span>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-label-group">
-                <span class="toggle-title">EasyOCR Jersey Recognition</span>
-                <span class="toggle-subtitle">Player ID persistence</span>
-              </div>
-              <span class="badge badge-ready">Active</span>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-label-group">
-                <span class="toggle-title">K-Means Dynamic Team Colors</span>
-                <span class="toggle-subtitle">Unsupervised jersey clustering</span>
-              </div>
-              <span class="badge badge-ready">Active</span>
-            </div>
           </div>
 
           <!-- Action Buttons -->
@@ -175,41 +185,10 @@
             <span class="badge badge-running" id="metricStageName">Idle</span>
           </div>
 
-          <!-- 8 Stage Stepper -->
+          <!-- Dynamic Stage Stepper -->
           <div class="stages-wrapper">
-            <div class="stage-steps">
-              <div class="stage-step" data-stage="1">
-                <span class="stage-num">01</span>
-                <span class="stage-label">Hardware</span>
-              </div>
-              <div class="stage-step" data-stage="2">
-                <span class="stage-num">02</span>
-                <span class="stage-label">AI Models</span>
-              </div>
-              <div class="stage-step" data-stage="3">
-                <span class="stage-num">03</span>
-                <span class="stage-label">Video</span>
-              </div>
-              <div class="stage-step" data-stage="4">
-                <span class="stage-num">04</span>
-                <span class="stage-label">Tracking</span>
-              </div>
-              <div class="stage-step" data-stage="5">
-                <span class="stage-num">05</span>
-                <span class="stage-label">Minimap</span>
-              </div>
-              <div class="stage-step" data-stage="6">
-                <span class="stage-num">06</span>
-                <span class="stage-label">Shot Arc</span>
-              </div>
-              <div class="stage-step" data-stage="7">
-                <span class="stage-num">07</span>
-                <span class="stage-label">Highlights</span>
-              </div>
-              <div class="stage-step" data-stage="8">
-                <span class="stage-num">08</span>
-                <span class="stage-label">Report</span>
-              </div>
+            <div class="stage-steps" id="stageStepsContainer">
+              <!-- Populated dynamically by JS -->
             </div>
           </div>
 
@@ -260,8 +239,8 @@
               <button class="btn btn-secondary" id="clearLogsBtn" style="padding: 2px 8px; font-size: 0.7rem;">Clear</button>
             </div>
             <div class="terminal-body" id="terminalBody">
-              <div class="log-line green">CourtVision Spatial Analytics Engine v2.0 Ready.</div>
-              <div class="log-line">Select a video and press 'Run Analytics Pipeline' or view pre-computed analysis.</div>
+              <div class="log-line green">SportsVision Multi-Sport Analytics Engine v3.0 Ready.</div>
+              <div class="log-line">Upload a video or select from library, then press 'Run Analytics Pipeline'.</div>
             </div>
           </div>
 
@@ -290,7 +269,7 @@
         <!-- Right: AI Annotated Video -->
         <div class="video-card" style="border-color: rgba(0, 229, 255, 0.3);">
           <div class="video-card-header">
-            <span style="font-weight: 600; font-size: 0.95rem; color: var(--accent-cyan);">CourtVision Spatial Intelligence</span>
+            <span style="font-weight: 600; font-size: 0.95rem; color: var(--accent-cyan);">SportsVision Spatial Intelligence</span>
             <span class="video-badge ai">AI Computer Vision</span>
           </div>
           <div class="video-viewport">
@@ -323,134 +302,278 @@
         </div>
       </div>
 
-      <!-- Feature Guide for Video Theater -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px;">
-        <div class="stat-box cyan">
-          <div class="stat-box-title">Player Tracking & SAM2</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
-            RF-DETR + BoT-SORT bounding boxes with Meta SAM2 instance segmentation.
-          </div>
-        </div>
-        <div class="stat-box orange">
-          <div class="stat-box-title">Ball Path & Glowing Tail</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
-            Custom YOLOv8 with physics-aware trajectory smoothing & parabolic shot detection.
-          </div>
-        </div>
-        <div class="stat-box green">
-          <div class="stat-box-title">Dynamic Jersey Clustering</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
-            Pixel K-Means automatically separates Team 1 (Red) vs Team 2 (Green) dynamically.
-          </div>
-        </div>
-        <div class="stat-box purple">
-          <div class="stat-box-title">2D Tactical Minimap</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
-            Homography transformation projects court keypoints directly onto 2D top-down view.
-          </div>
-        </div>
+      <!-- Feature Guide Cards (sport-adaptive) -->
+      <div id="theaterFeatureCards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px;">
+        <!-- Populated by JS based on detected sport -->
       </div>
     </section>
 
     <!-- 3. GAME ANALYTICS PANE -->
     <section class="tab-pane" id="analytics-pane">
-      
-      <!-- Top Metrics Summary -->
-      <div class="analytics-summary-cards">
-        <div class="stat-box orange">
-          <div class="stat-box-title">Shots Detected</div>
-          <div class="stat-box-val" id="statShotsDetected">0</div>
-          <div class="stat-box-sub">Parabolic Trajectories</div>
+
+      <!-- ===== BASKETBALL ANALYTICS SECTION ===== -->
+      <div id="basketball-analytics-section" style="display: none;">
+
+        <!-- Top Metrics Summary -->
+        <div class="analytics-summary-cards">
+          <div class="stat-box orange">
+            <div class="stat-box-title">Shots Detected</div>
+            <div class="stat-box-val" id="statShotsDetected">0</div>
+            <div class="stat-box-sub">Parabolic Trajectories</div>
+          </div>
+          <div class="stat-box cyan">
+            <div class="stat-box-title">Duration Analyzed</div>
+            <div class="stat-box-val" id="statDuration">0s</div>
+            <div class="stat-box-sub">Broadcast Time</div>
+          </div>
+          <div class="stat-box green">
+            <div class="stat-box-title">Total Frames</div>
+            <div class="stat-box-val" id="statTotalFrames">0</div>
+            <div class="stat-box-sub">Processed at 720p</div>
+          </div>
+          <div class="stat-box purple">
+            <div class="stat-box-title">Spatial Keypoints</div>
+            <div class="stat-box-val">28 x 15m</div>
+            <div class="stat-box-sub">FIBA Regulation Court</div>
+          </div>
         </div>
-        <div class="stat-box cyan">
-          <div class="stat-box-title">Duration Analyzed</div>
-          <div class="stat-box-val" id="statDuration">0s</div>
-          <div class="stat-box-sub">Broadcast Time</div>
+
+        <!-- Team Head-to-Head Comparison -->
+        <div class="teams-comparison-container">
+          <!-- Team 1 Card -->
+          <div class="team-card team-1">
+            <div class="team-header-row">
+              <span class="team-name" style="color: var(--accent-red);">Team 1</span>
+              <span style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700;" id="statPossessionT1">50.0%</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Ball Possession</div>
+            <div class="team-possession-bar">
+              <div class="team-possession-fill-1" id="possessionFillT1" style="width: 50%;"></div>
+            </div>
+            <div class="team-stat-row">
+              <span class="team-stat-label">Completed Passes</span>
+              <span class="team-stat-value" id="statPassesT1">0</span>
+            </div>
+            <div class="team-stat-row">
+              <span class="team-stat-label">Interceptions Forced</span>
+              <span class="team-stat-value" id="statInterceptT1">0</span>
+            </div>
+          </div>
+
+          <!-- Team 2 Card -->
+          <div class="team-card team-2">
+            <div class="team-header-row">
+              <span class="team-name" style="color: var(--accent-green);">Team 2</span>
+              <span style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700;" id="statPossessionT2">50.0%</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Ball Possession</div>
+            <div class="team-possession-bar">
+              <div class="team-possession-fill-2" id="possessionFillT2" style="width: 50%;"></div>
+            </div>
+            <div class="team-stat-row">
+              <span class="team-stat-label">Completed Passes</span>
+              <span class="team-stat-value" id="statPassesT2">0</span>
+            </div>
+            <div class="team-stat-row">
+              <span class="team-stat-label">Interceptions Forced</span>
+              <span class="team-stat-value" id="statInterceptT2">0</span>
+            </div>
+          </div>
         </div>
-        <div class="stat-box green">
-          <div class="stat-box-title">Total Frames</div>
-          <div class="stat-box-val" id="statTotalFrames">0</div>
-          <div class="stat-box-sub">Processed at 720p</div>
+
+        <!-- Player Leaderboard Table -->
+        <div class="glass-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">🏃‍♂️</span> Player Speed & Distance Leaderboard
+            </h2>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Tracked via Tactical Minimap Coordinates</span>
+          </div>
+
+          <div class="data-table-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Player ID</th>
+                  <th>Team</th>
+                  <th>Distance Covered</th>
+                  <th>Average Speed</th>
+                  <th>Top Speed</th>
+                </tr>
+              </thead>
+              <tbody id="playerTableBody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                    No player statistics loaded. Run the pipeline or click 'View Pre-Computed Analysis'.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="stat-box purple">
-          <div class="stat-box-title">Spatial Keypoints</div>
-          <div class="stat-box-val">28 x 15m</div>
-          <div class="stat-box-sub">FIBA Regulation Court</div>
-        </div>
+
       </div>
 
-      <!-- Team Head-to-Head Comparison -->
-      <div class="teams-comparison-container">
-        <!-- Team 1 Card -->
-        <div class="team-card team-1">
-          <div class="team-header-row">
-            <span class="team-name" style="color: var(--accent-red);">Team 1</span>
-            <span style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700;" id="statPossessionT1">50.0%</span>
+      <!-- ===== CRICKET ANALYTICS SECTION ===== -->
+      <div id="cricket-analytics-section" style="display: none;">
+
+        <!-- Match Summary Cards -->
+        <div class="analytics-summary-cards">
+          <div class="stat-box orange">
+            <div class="stat-box-title">Deliveries Bowled</div>
+            <div class="stat-box-val" id="cricketDeliveries">0</div>
+            <div class="stat-box-sub" id="cricketOvers">0.0 Overs</div>
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">Ball Possession</div>
-          <div class="team-possession-bar">
-            <div class="team-possession-fill-1" id="possessionFillT1" style="width: 50%;"></div>
+          <div class="stat-box cyan">
+            <div class="stat-box-title">Wickets Taken</div>
+            <div class="stat-box-val" id="cricketWickets">0</div>
+            <div class="stat-box-sub">Dismissals</div>
           </div>
-          <div class="team-stat-row">
-            <span class="team-stat-label">Completed Passes</span>
-            <span class="team-stat-value" id="statPassesT1">0</span>
+          <div class="stat-box green">
+            <div class="stat-box-title">Fours</div>
+            <div class="stat-box-val" id="cricketFours">0</div>
+            <div class="stat-box-sub">Boundary 4s</div>
           </div>
-          <div class="team-stat-row">
-            <span class="team-stat-label">Interceptions Forced</span>
-            <span class="team-stat-value" id="statInterceptT1">0</span>
+          <div class="stat-box purple">
+            <div class="stat-box-title">Sixes</div>
+            <div class="stat-box-val" id="cricketSixes">0</div>
+            <div class="stat-box-sub">Maximum</div>
           </div>
         </div>
 
-        <!-- Team 2 Card -->
-        <div class="team-card team-2">
-          <div class="team-header-row">
-            <span class="team-name" style="color: var(--accent-green);">Team 2</span>
-            <span style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700;" id="statPossessionT2">50.0%</span>
+        <!-- Speed Gun Analysis -->
+        <div class="glass-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">🔫</span> Speed Gun Analysis
+            </h2>
+            <span class="badge badge-ready">3D Ballistic Kinematics</span>
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">Ball Possession</div>
-          <div class="team-possession-bar">
-            <div class="team-possession-fill-2" id="possessionFillT2" style="width: 50%;"></div>
-          </div>
-          <div class="team-stat-row">
-            <span class="team-stat-label">Completed Passes</span>
-            <span class="team-stat-value" id="statPassesT2">0</span>
-          </div>
-          <div class="team-stat-row">
-            <span class="team-stat-label">Interceptions Forced</span>
-            <span class="team-stat-value" id="statInterceptT2">0</span>
+          <div class="metrics-row" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="metric-card">
+              <div class="metric-title">Fastest Delivery</div>
+              <div class="metric-val cyan" id="cricketFastestSpeed">0.0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">km/h</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Average Speed</div>
+              <div class="metric-val orange" id="cricketAvgSpeed">0.0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">km/h</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Slowest Delivery</div>
+              <div class="metric-val" id="cricketSlowestSpeed">0.0</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">km/h</div>
+            </div>
           </div>
         </div>
+
+        <!-- Dot Ball % and Extra Stats -->
+        <div class="analytics-summary-cards" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+          <div class="stat-box cyan">
+            <div class="stat-box-title">Dot Ball %</div>
+            <div class="stat-box-val" id="cricketDotPct">0%</div>
+            <div class="stat-box-sub">Dot Balls</div>
+          </div>
+          <div class="stat-box orange">
+            <div class="stat-box-title">Estimated Runs</div>
+            <div class="stat-box-val" id="cricketRuns">0</div>
+            <div class="stat-box-sub">From boundaries + extras</div>
+          </div>
+          <div class="stat-box green">
+            <div class="stat-box-title">Highlights</div>
+            <div class="stat-box-val" id="cricketHighlightCount">0</div>
+            <div class="stat-box-sub">Audio-Visual Fused</div>
+          </div>
+        </div>
+
+        <!-- Line & Length Distribution -->
+        <div class="distributions-grid">
+          <div class="glass-panel">
+            <div class="panel-header">
+              <h2 class="panel-title"><span class="panel-title-icon">📐</span> Line Distribution</h2>
+            </div>
+            <div id="lineDistContainer" class="dist-container"></div>
+          </div>
+          <div class="glass-panel">
+            <div class="panel-header">
+              <h2 class="panel-title"><span class="panel-title-icon">📏</span> Length Distribution</h2>
+            </div>
+            <div id="lengthDistContainer" class="dist-container"></div>
+          </div>
+        </div>
+
+        <!-- Shot Type Distribution -->
+        <div class="glass-panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span class="panel-title-icon">🏏</span> Shot Type Distribution</h2>
+          </div>
+          <div id="shotTypeContainer" class="dist-container"></div>
+        </div>
+
+        <!-- DRS Verdict Section -->
+        <div class="glass-panel" id="drsSection" style="display: none;">
+          <div class="panel-header">
+            <h2 class="panel-title"><span class="panel-title-icon">⚖️</span> DRS LBW Verdict</h2>
+            <span class="badge badge-running">ICC Law 36</span>
+          </div>
+          <div id="drsVerdictContainer"></div>
+        </div>
+
+        <!-- Ball-by-Ball Commentary -->
+        <div class="glass-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">📝</span> Ball-by-Ball Commentary
+            </h2>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">AI-Generated Natural Language</span>
+          </div>
+          <div class="commentary-log" id="commentaryLog">
+            <div class="commentary-empty">No commentary data. Run the cricket pipeline to generate ball-by-ball coverage.</div>
+          </div>
+        </div>
+
+        <!-- Deliveries Telemetry & xD Table -->
+        <div class="glass-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span class="panel-title-icon">🎯</span> Delivery Telemetry & Expected Dismissal (xD)
+            </h2>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Ballistic Kinematics & Line/Length Profiling</span>
+          </div>
+
+          <div class="data-table-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Delivery</th>
+                  <th>Over</th>
+                  <th>Speed (Rel / Bnc)</th>
+                  <th>Line & Length</th>
+                  <th>Shot Played</th>
+                  <th>Outcome</th>
+                  <th>Deceleration</th>
+                  <th>xD Threat</th>
+                </tr>
+              </thead>
+              <tbody id="cricketDeliveriesTableBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                    No delivery statistics loaded. Run the cricket pipeline or click 'View Pre-Computed Analysis'.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Player Leaderboard Table -->
-      <div class="glass-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <span class="panel-title-icon">🏃‍♂️</span> Player Speed & Distance Leaderboard
-          </h2>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">Tracked via Tactical Minimap Coordinates</span>
-        </div>
-
-        <div class="data-table-container">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Player ID</th>
-                <th>Team</th>
-                <th>Distance Covered</th>
-                <th>Average Speed</th>
-                <th>Top Speed</th>
-              </tr>
-            </thead>
-            <tbody id="playerTableBody">
-              <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">
-                  No player statistics loaded. Run the pipeline or click 'View Pre-Computed Analysis'.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- No Data Placeholder -->
+      <div class="empty-state" id="analyticsPlaceholder">
+        <div class="empty-state-icon">📊</div>
+        <h3>No Analytics Data Yet</h3>
+        <p>Upload a video and run the pipeline, or select a previously analyzed video to view statistics.</p>
       </div>
 
     </section>
@@ -460,35 +583,71 @@
       <div class="empty-state" id="heatmapPlaceholder">
         <div class="empty-state-icon">🌡️</div>
         <h3>No Heatmaps Generated Yet</h3>
-        <p>Run the pipeline or select an analyzed video to view Team 1 vs Team 2 court coverage heatmaps.</p>
+        <p>Run the pipeline or select an analyzed video to view spatial coverage visualizations.</p>
       </div>
 
-      <div class="heatmaps-grid" id="heatmapContainer" style="display: none;">
-        <!-- Team 1 Heatmap -->
-        <div class="heatmap-card">
-          <div class="heatmap-card-header">
-            <span style="font-weight: 700; color: var(--accent-red);">Team 1 Spatial Coverage Heatmap</span>
-            <span class="player-team-pill team1">Team 1</span>
+      <!-- Basketball Heatmaps -->
+      <div id="basketball-heatmaps-section" style="display: none;">
+        <div class="heatmaps-grid" id="heatmapContainer">
+          <!-- Team 1 Heatmap -->
+          <div class="heatmap-card">
+            <div class="heatmap-card-header">
+              <span style="font-weight: 700; color: var(--accent-red);">Team 1 Spatial Coverage Heatmap</span>
+              <span class="player-team-pill team1">Team 1</span>
+            </div>
+            <div class="heatmap-image-wrapper">
+              <img id="heatmapTeam1Img" alt="Team 1 Heatmap" src="">
+            </div>
+            <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
+              Gaussian thermal intensity on FIBA regulation court showing Team 1 movement and defensive spacing.
+            </div>
           </div>
-          <div class="heatmap-image-wrapper">
-            <img id="heatmapTeam1Img" alt="Team 1 Heatmap" src="">
-          </div>
-          <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
-            Gaussian thermal intensity mapped on FIBA regulation court showing Team 1 movement and defensive spacing.
+
+          <!-- Team 2 Heatmap -->
+          <div class="heatmap-card">
+            <div class="heatmap-card-header">
+              <span style="font-weight: 700; color: var(--accent-green);">Team 2 Spatial Coverage Heatmap</span>
+              <span class="player-team-pill team2">Team 2</span>
+            </div>
+            <div class="heatmap-image-wrapper">
+              <img id="heatmapTeam2Img" alt="Team 2 Heatmap" src="">
+            </div>
+            <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
+              Gaussian thermal intensity on FIBA regulation court showing Team 2 movement and defensive spacing.
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- Team 2 Heatmap -->
-        <div class="heatmap-card">
-          <div class="heatmap-card-header">
-            <span style="font-weight: 700; color: var(--accent-green);">Team 2 Spatial Coverage Heatmap</span>
-            <span class="player-team-pill team2">Team 2</span>
+      <!-- Cricket Visuals -->
+      <div id="cricket-visuals-section" style="display: none;">
+        <div class="heatmaps-grid">
+          <!-- Pitch Map -->
+          <div class="heatmap-card">
+            <div class="heatmap-card-header">
+              <span style="font-weight: 700; color: var(--accent-cyan);">22-Yard Pitch Map</span>
+              <span class="video-badge ai">Bounce Points</span>
+            </div>
+            <div class="heatmap-image-wrapper" style="aspect-ratio: 600/320;">
+              <img id="cricketPitchMapImg" alt="Pitch Map" src="">
+            </div>
+            <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
+              Delivery bounce landing positions mapped on the 22-yard pitch template with line and length classification.
+            </div>
           </div>
-          <div class="heatmap-image-wrapper">
-            <img id="heatmapTeam2Img" alt="Team 2 Heatmap" src="">
-          </div>
-          <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
-            Gaussian thermal intensity mapped on FIBA regulation court showing Team 2 movement and defensive spacing.
+
+          <!-- Ground Radar -->
+          <div class="heatmap-card">
+            <div class="heatmap-card-header">
+              <span style="font-weight: 700; color: var(--accent-orange);">Ground Radar</span>
+              <span class="video-badge ai">Shot Direction</span>
+            </div>
+            <div class="heatmap-image-wrapper" style="aspect-ratio: 1/1;">
+              <img id="cricketGroundRadarImg" alt="Ground Radar" src="">
+            </div>
+            <div style="padding: 14px 20px; font-size: 0.82rem; color: var(--text-secondary);">
+              Top-down circular ground radar showing ball travel direction and player positions.
+            </div>
           </div>
         </div>
       </div>
@@ -501,7 +660,7 @@
           <h2 class="panel-title">
             <span class="panel-title-icon">🌟</span> AI-Generated Game Highlights
           </h2>
-          <span class="badge badge-ready">Automated Shot Detector</span>
+          <span class="badge badge-ready" id="highlightMethodBadge">Automated Detection</span>
         </div>
 
         <div class="video-viewport" style="border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 20px;">
@@ -510,8 +669,8 @@
           </video>
         </div>
 
-        <div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">
-          <strong>How highlights work:</strong> The geometric shot detection engine isolates high-confidence parabolic shot trajectories intersecting the hoop regions (4 seconds before release to 2 seconds after completion) and automatically extracts seamless highlight reels.
+        <div id="highlightDescription" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">
+          <strong>How highlights work:</strong> The engine automatically detects key moments (shots, wickets, boundaries) and extracts seamless highlight reels with configurable buffer windows.
         </div>
       </div>
     </section>

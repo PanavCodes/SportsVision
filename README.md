@@ -4,6 +4,7 @@
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x%20(CUDA%2012.1)-ee4c2c.svg)](https://pytorch.org/)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-00ffff.svg)](https://github.com/ultralytics/ultralytics)
 [![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-5c3ee8.svg)](https://opencv.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Web%20Studio-009688.svg)](https://fastapi.tiangolo.com/)
 [![Hardware](https://img.shields.io/badge/GPU-NVIDIA%20RTX%20Accelerated-76b900.svg)](https://www.nvidia.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -170,13 +171,25 @@ python setup_models.py
 ```
 
 ### 3. Launch Web Studio Frontend 🌐 (Recommended for Presentations & Demos)
-Run the web interface to view live telemetry, interactive video playback, tactical minimaps, and post-game analytics without using terminal commands:
+Run the broadcast-grade web interface to view live telemetry, interactive video playback, tactical minimaps, and post-game analytics without using terminal commands:
 - **Windows One-Click:** Double-click [run_app.bat](file:///run_app.bat)
-- **Terminal:**
+- **Linux / macOS:**
+  ```bash
+  chmod +x run_app.sh
+  ./run_app.sh
+  ```
+- **Manual Launch:**
   ```bash
   python app.py
   ```
   The browser will automatically open to `http://localhost:8000`.
+
+#### Web Studio Features:
+- **Multi-Sport Adaptive UI**: Automatically switches telemetry, minimaps, and metric cards between Cricket and Basketball.
+- **Live Pipeline Monitor**: Real-time log console via SSE, stage progress indicators, GPU VRAM tracking, and dynamic ETA.
+- **Cricket Analytics Suite**: 22-Yard Pitch Homography Map with impact rings, Full Ground Radar Minimap, Speed Gun telemetry, ball-by-ball commentary with filterable events (Wickets, Boundaries, Dots), and auto-cut highlight reels.
+- **Basketball Analytics Suite**: 2D Tactical Court Minimap, Team possession breakdown, parabolic shot tracking (makes/misses), and player speed/distance metrics.
+- **Web-Optimized Transcoding**: Built-in background H.264 transcoding for instantaneous in-browser video playback.
 
 ---
 

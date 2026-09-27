@@ -15,6 +15,7 @@ supervision>=0.19.0
 # Computer Vision & Video Editing
 opencv-python>=4.8.0
 moviepy>=1.0.3
+imageio-ffmpeg>=0.4.8
 Pillow>=10.0.0
 
 # Transformers & Zero-Shot Classification

@@ -58,7 +58,7 @@ If you prefer setting up manually or need a customized CUDA configuration:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YourUsername/SportsVision.git
+git clone https://github.com/PanavCodes/SportsVision.git
 cd SportsVision
 ```
 

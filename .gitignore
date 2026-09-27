@@ -71,13 +71,18 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# IDEs
+# IDEs & AI Development Tools
 .idea/
 .vscode/
 *.swp
 *.swo
 .project
 .pydevproject
+.kombai/
+.qodo/
+.claude/
+.agents/
+.gemini/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -85,6 +90,9 @@ desktop.ini
 # Kluster
 .kluster/
 
-# Temporary / Scratch
+# Temporary / Scratch / Logs
 scratch/
 test_phase*.jpg
+*.log
+web_optimized_*.mp4
+
