@@ -96,6 +96,11 @@ class PipelineManager:
             return
         for q in list(self.listeners):
             try:
+                if q.full():
+                    try:
+                        q.get_nowait()
+                    except Exception:
+                        pass
                 self.loop.call_soon_threadsafe(q.put_nowait, message)
             except Exception:
                 pass
@@ -757,21 +762,92 @@ def stream_video(file_path: Path, request: Request):
 
 # ---------------- API ROUTES ----------------
 
-@app.get("/api/system")
-async def get_system_info():
+def detect_hardware_profile() -> Dict[str, Any]:
+    """Auto-detect GPU capability and return optimal processing profile."""
     import torch
     cuda_avail = torch.cuda.is_available()
-    gpu_name = torch.cuda.get_device_name(0) if cuda_avail else "CPU Only"
-    vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2) if cuda_avail else 0
+    if not cuda_avail:
+        return {
+            "profile_key": "mx450",  # Use ultra-light zero-OOM safe profile for CPU
+            "name": "CPU Mode",
+            "vram_gb": 0.0,
+            "cuda_available": False,
+            "batch_size": 1,
+            "frame_skip": 2,
+            "use_sam2": False,
+            "description": "CPU Mode: Batch 1, Skip 2, SAM2 Disabled (Zero-OOM Safe)",
+            "badge_text": "CPU Mode"
+        }
+
+    try:
+        current_dev = torch.cuda.current_device()
+        gpu_name = torch.cuda.get_device_name(current_dev)
+        vram_gb = round(torch.cuda.get_device_properties(current_dev).total_memory / (1024**3), 2)
+    except Exception:
+        gpu_name = "NVIDIA GPU"
+        vram_gb = 2.0
+
+    gpu_lower = gpu_name.lower()
+
+    # 2GB class: MX450, MX350, MX250, GTX 1050, 2GB VRAM cards
+    if vram_gb <= 3.0 or any(k in gpu_lower for k in ["mx", "1050", "mobile"]):
+        return {
+            "profile_key": "mx450",
+            "name": gpu_name,
+            "vram_gb": vram_gb,
+            "cuda_available": True,
+            "batch_size": 1,
+            "frame_skip": 2,
+            "use_sam2": False,
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 1, Skip 2, SAM2 Disabled (Zero-OOM Safe)",
+            "badge_text": f"{gpu_name} ({vram_gb}GB)"
+        }
+    # 4-6GB class: RTX 3050, GTX 1650/1660, RTX 2060, etc.
+    elif vram_gb <= 6.5 or any(k in gpu_lower for k in ["3050", "1650", "1660", "2060"]):
+        return {
+            "profile_key": "rtx3050",
+            "name": gpu_name,
+            "vram_gb": vram_gb,
+            "cuda_available": True,
+            "batch_size": 6,
+            "frame_skip": 1,
+            "use_sam2": True,
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 6, Skip 1, SAM2 Enabled",
+            "badge_text": f"{gpu_name} ({vram_gb}GB)"
+        }
+    # 8GB+ class: RTX 4060, RTX 3070/3080/4070/4080/4090, A100, etc.
+    else:
+        return {
+            "profile_key": "rtx4060",
+            "name": gpu_name,
+            "vram_gb": vram_gb,
+            "cuda_available": True,
+            "batch_size": 16,
+            "frame_skip": 1,
+            "use_sam2": True,
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 16, Skip 1, Full SAM2",
+            "badge_text": f"{gpu_name} ({vram_gb}GB)"
+        }
+
+
+@app.get("/api/system")
+async def get_system_info():
+    hw = detect_hardware_profile()
 
     return {
-        "cuda_available": cuda_avail,
+        "cuda_available": hw["cuda_available"],
         "device": config.DEVICE,
-        "gpu_name": gpu_name,
-        "vram_gb": vram_gb,
-        "batch_size": config.BATCH_SIZE,
-        "frame_skip": config.FRAME_SKIP,
-        "use_sam2": getattr(config, "USE_SAM2", True),
+        "gpu_name": hw["name"],
+        "vram_gb": hw["vram_gb"],
+        "optimal_profile": hw["profile_key"],
+        "optimal_batch_size": hw["batch_size"],
+        "optimal_frame_skip": hw["frame_skip"],
+        "optimal_use_sam2": hw["use_sam2"],
+        "profile_description": hw["description"],
+        "profile_badge": hw["badge_text"],
+        "batch_size": hw["batch_size"],
+        "frame_skip": hw["frame_skip"],
+        "use_sam2": hw["use_sam2"],
         "use_ocr": getattr(config, "USE_OCR", True),
         "use_rf_detr": getattr(config, "USE_RF_DETR", True),
         "ffmpeg_available": FFMPEG_EXE is not None,
@@ -827,7 +903,7 @@ async def start_pipeline(
     max_frames: Optional[int] = Form(None),
     frame_skip: Optional[int] = Form(None),
     batch_size: Optional[int] = Form(None),
-    use_sam2: bool = Form(True),
+    use_sam2: Optional[bool] = Form(None),
     resume: bool = Form(False)
 ):
     if pipeline_mgr.is_running:
@@ -843,6 +919,15 @@ async def start_pipeline(
         else:
             raise HTTPException(status_code=404, detail=f"Video file not found: {video_path}")
 
+    # Auto-detect hardware profile if options are omitted
+    hw = detect_hardware_profile()
+    if batch_size is None or batch_size <= 0:
+        batch_size = hw["batch_size"]
+    if frame_skip is None or frame_skip <= 0:
+        frame_skip = hw["frame_skip"]
+    if use_sam2 is None:
+        use_sam2 = hw["use_sam2"]
+
     try:
         pipeline_mgr.run_pipeline(
             video_path=video_path,
@@ -853,7 +938,15 @@ async def start_pipeline(
             use_sam2=use_sam2,
             resume=resume
         )
-        return {"status": "started", "video_path": video_path, "sport": sport}
+        return {
+            "status": "started",
+            "video_path": video_path,
+            "sport": sport,
+            "batch_size": batch_size,
+            "frame_skip": frame_skip,
+            "use_sam2": use_sam2,
+            "hardware_profile": hw["badge_text"]
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -865,7 +958,7 @@ async def stop_pipeline():
 @app.get("/api/stream-logs")
 async def stream_logs():
     async def event_generator():
-        q = asyncio.Queue()
+        q = asyncio.Queue(maxsize=100)
         pipeline_mgr.listeners.append(q)
 
         # Send initial batch of logs
@@ -878,8 +971,13 @@ async def stream_logs():
 
         try:
             while True:
-                msg = await q.get()
-                yield f"data: {json.dumps(msg)}\n\n"
+                try:
+                    # Timeout after 12s to send keep-alive comment so connection never drops
+                    msg = await asyncio.wait_for(q.get(), timeout=12.0)
+                    yield f"data: {json.dumps(msg)}\n\n"
+                except asyncio.TimeoutError:
+                    # Keep-alive heartbeat comment prevents HTTP/TCP socket drop
+                    yield ": keepalive\n\n"
         except asyncio.CancelledError:
             pass
         finally:

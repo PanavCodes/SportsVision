@@ -298,13 +298,10 @@ function initPresets() {
       const preset = chip.dataset.preset;
       if (preset === 'quick') {
         elements.inputMaxFrames.value = '150';
-        elements.inputFrameSkip.value = '2';
       } else if (preset === 'standard') {
         elements.inputMaxFrames.value = '300';
-        elements.inputFrameSkip.value = '1';
       } else if (preset === 'full') {
         elements.inputMaxFrames.value = '';
-        elements.inputFrameSkip.value = '1';
       }
     });
   });
@@ -454,22 +451,20 @@ async function loadSystemInfo() {
     if (data.cuda_available) {
       elements.systemGpuText.textContent = `${data.gpu_name} (${data.vram_gb} GB VRAM) • CUDA Active`;
       elements.systemStatusDot.classList.remove('inactive');
-
-      // Auto-suggest hardware profile based on detected VRAM / GPU model
-      const gpuLower = (data.gpu_name || '').toLowerCase();
-      if (data.vram_gb <= 2.5 || gpuLower.includes('mx450') || gpuLower.includes('mx350') || gpuLower.includes('mx')) {
-        const mxCard = document.querySelector('.hardware-card[data-gpu="mx450"]');
-        if (mxCard) mxCard.click();
-      } else if (data.vram_gb <= 6.5 || gpuLower.includes('3050') || gpuLower.includes('1650') || gpuLower.includes('2060')) {
-        const rtxCard = document.querySelector('.hardware-card[data-gpu="rtx3050"]');
-        if (rtxCard) rtxCard.click();
-      }
     } else {
-      elements.systemGpuText.textContent = `CPU Mode (${data.gpu_name})`;
+      elements.systemGpuText.textContent = `CPU Mode (${data.gpu_name || 'CPU Only'})`;
       elements.systemStatusDot.classList.add('inactive');
-      // For CPU mode, default to MX450 ultra-light mode
-      const mxCard = document.querySelector('.hardware-card[data-gpu="mx450"]');
-      if (mxCard) mxCard.click();
+    }
+
+    // Auto-select hardware profile based on backend optimal detection
+    const optKey = data.optimal_profile || (data.vram_gb <= 2.5 ? 'mx450' : (data.vram_gb <= 6.5 ? 'rtx3050' : 'rtx4060'));
+    const targetCard = document.querySelector(`.hardware-card[data-gpu="${optKey}"]`);
+    if (targetCard) {
+      targetCard.click();
+    }
+
+    if (data.profile_badge && elements.activeGpuBadge) {
+      elements.activeGpuBadge.textContent = data.profile_badge;
     }
   } catch (err) {
     console.error('Failed to load system info:', err);
@@ -514,6 +509,7 @@ async function loadVideos(targetFilename = null) {
     onVideoSelectionChange();
   } catch (err) {
     console.error('Failed to load videos:', err);
+    elements.videoSelect.innerHTML = '<option value="">⚠️ Could not reach server — click 🔄 Refresh</option>';
   }
 }
 
@@ -658,12 +654,63 @@ function setPipelineRunningUI(isRunning) {
     elements.metricVram.textContent = 'Loading...';
     detectedSport = "unknown";
     updateSportBadge("unknown");
+  } else {
+    stopStatusPolling();
   }
 }
 
-// ========================== SSE Log Streaming ==========================
+// ========================== Resilient Streaming & Heartbeat Polling ==========================
+let eventSource = null;
+let statusPollingInterval = null;
+
+function startStatusPolling() {
+  if (statusPollingInterval) clearInterval(statusPollingInterval);
+  statusPollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) return;
+      const status = await res.json();
+      updateStatusMetrics(status);
+
+      if (!status.is_running && elements.btnStopPipeline.style.display !== 'none') {
+        // Pipeline ended while polling
+        stopStatusPolling();
+        setPipelineRunningUI(false);
+        if (eventSource) {
+          try { eventSource.close(); } catch(e) {}
+          eventSource = null;
+        }
+        if (status.completed) {
+          showToast('success', 'Analytics Pipeline Completed Successfully!');
+          loadVideos();
+          if (status.video_name) fetchAndDisplayResults(status.video_name);
+          switchTab('theater-pane');
+        } else if (status.error) {
+          showToast('error', status.error);
+        }
+      }
+    } catch (err) {
+      console.warn('Status poll heartbeat notice:', err);
+    }
+  }, 2500);
+}
+
+function stopStatusPolling() {
+  if (statusPollingInterval) {
+    clearInterval(statusPollingInterval);
+    statusPollingInterval = null;
+  }
+}
+
 function startLogStreaming() {
-  if (eventSource) eventSource.close();
+  if (eventSource) {
+    try { eventSource.close(); } catch (e) {}
+    eventSource = null;
+  }
+
+  // Launch background fallback polling in parallel to guarantee live UI updates
+  startStatusPolling();
+
   eventSource = new EventSource('/api/stream-logs');
 
   eventSource.onmessage = (e) => {
@@ -681,15 +728,23 @@ function startLogStreaming() {
         if (data.status) updateStatusMetrics(data.status);
       } else if (data.type === 'complete') {
         appendTerminalLine('[✓] Analytics Pipeline Completed Successfully!');
+        stopStatusPolling();
         setPipelineRunningUI(false);
-        if (eventSource) eventSource.close();
+        if (eventSource) {
+          try { eventSource.close(); } catch(e) {}
+          eventSource = null;
+        }
         loadVideos();
         fetchAndDisplayResults(data.video_name);
         showToast('success', 'Analysis complete! Switching to Video Theater.');
         switchTab('theater-pane');
       } else if (data.type === 'error' || data.type === 'aborted') {
+        stopStatusPolling();
         setPipelineRunningUI(false);
-        if (eventSource) eventSource.close();
+        if (eventSource) {
+          try { eventSource.close(); } catch(e) {}
+          eventSource = null;
+        }
         if (data.error) showToast('error', data.error);
       }
     } catch (err) {
@@ -698,12 +753,13 @@ function startLogStreaming() {
   };
 
   eventSource.onerror = () => {
-    console.warn('SSE connection closed or lost.');
-    if (eventSource) eventSource.close();
+    // Keep eventSource alive so browser natively reconnects
+    console.warn('SSE connection notice: reconnecting stream in background...');
   };
 }
 
 function appendTerminalLine(text) {
+  if (!text) return;
   const line = document.createElement('div');
   line.className = 'log-line';
 
@@ -719,6 +775,12 @@ function appendTerminalLine(text) {
 
   line.textContent = text;
   elements.terminalBody.appendChild(line);
+
+  // Maintain DOM performance: cap lines to latest 400 to prevent layout thrashing
+  while (elements.terminalBody.children.length > 400) {
+    elements.terminalBody.removeChild(elements.terminalBody.firstChild);
+  }
+
   elements.terminalBody.scrollTop = elements.terminalBody.scrollHeight;
 }
 

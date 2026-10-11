@@ -40,9 +40,51 @@ def main():
     if not os.path.exists(args.video_path):
         raise FileNotFoundError(f"Input video not found: {args.video_path}")
 
-    if args.no_sam2:
+    # Hardware Auto-Tuning: Detect GPU capability if parameters are omitted
+    import torch
+    batch_size = args.batch_size
+    frame_skip = args.frame_skip
+
+    if torch.cuda.is_available():
+        try:
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            gpu_name = torch.cuda.get_device_name(0)
+        except Exception:
+            vram_gb = 2.0
+            gpu_name = "CUDA Device"
+
+        gpu_lower = gpu_name.lower()
+        if vram_gb <= 3.0 or any(k in gpu_lower for k in ["mx", "1050", "mobile"]):
+            if batch_size is None:
+                batch_size = 1
+            if frame_skip is None:
+                frame_skip = 2
+            if not args.no_sam2:
+                config.USE_SAM2 = False
+            print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Zero-OOM settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")
+        elif vram_gb <= 6.5 or any(k in gpu_lower for k in ["3050", "1650", "1660", "2060"]):
+            if batch_size is None:
+                batch_size = 6
+            if frame_skip is None:
+                frame_skip = 1
+            if args.no_sam2:
+                config.USE_SAM2 = False
+            print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Balanced settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")
+        else:
+            if batch_size is None:
+                batch_size = 16
+            if frame_skip is None:
+                frame_skip = 1
+            if args.no_sam2:
+                config.USE_SAM2 = False
+            print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Max Performance settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")
+    else:
+        if batch_size is None:
+            batch_size = 1
+        if frame_skip is None:
+            frame_skip = 2
         config.USE_SAM2 = False
-        print("[Main Pipeline] Hardware Profile: SAM2 disabled to conserve VRAM.")
+        print("[Hardware Auto-Tuning] CPU Mode detected. Applied Lightweight settings: Batch=1, Skip=2, SAM2=False")
 
     # Determine Sport Category
     chosen_sport = args.sport
@@ -63,8 +105,8 @@ def main():
         return run_cricket_pipeline(
             video_path=args.video_path,
             max_frames=args.max_frames,
-            frame_skip=args.frame_skip,
-            batch_size=args.batch_size,
+            frame_skip=frame_skip,
+            batch_size=batch_size,
             resume=args.resume
         )
     else:
@@ -72,8 +114,8 @@ def main():
         return run_basketball_pipeline(
             video_path=args.video_path,
             max_frames=args.max_frames,
-            frame_skip=args.frame_skip,
-            batch_size=args.batch_size,
+            frame_skip=frame_skip,
+            batch_size=batch_size,
             resume=args.resume
         )
 
