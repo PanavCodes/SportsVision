@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import numpy as np
 from datetime import datetime
@@ -45,9 +45,16 @@ class CourtVisionAnalyticsReport:
         # Camera Motion Compensation (CMC) telemetry
         self.cmc_telemetry = None
 
+        # Voronoi Spatial Dominance statistics
+        self.voronoi_stats = None
+
     def update_cmc_telemetry(self, cmc_stats: dict):
         """Record camera motion compensation and homography continuity telemetry."""
         self.cmc_telemetry = cmc_stats
+
+    def update_voronoi_stats(self, voronoi_stats: dict):
+        """Record match-wide Voronoi spatial dominance statistics."""
+        self.voronoi_stats = voronoi_stats
 
     def update_possession(self, ball_possession: list, player_tracks: list):
         """Update possession stats from a batch of frames."""
@@ -78,7 +85,7 @@ class CourtVisionAnalyticsReport:
         """Update per-player distance from a batch."""
         for frame_dist in distances:
             for pid, dist in frame_dist.items():
-                self.player_distances[pid] = self.player_distances.get(pid, 0) + dist
+                self.player_distances[pid] = self.player_distances.get(pid, 0.0) + dist
     
     def update_speeds(self, speeds: list):
         """Update per-player speed samples from a batch."""
@@ -134,19 +141,19 @@ class CourtVisionAnalyticsReport:
         
         for pid in all_player_ids:
             team = self._get_player_team(pid)
-            dist = self.player_distances.get(pid, 0)
+            dist = self.player_distances.get(pid, 0.0)
             speeds = self.player_speed_samples.get(pid, [])
-            avg_speed = round(np.mean(speeds), 1) if speeds else 0
-            max_speed = round(max(speeds), 1) if speeds else 0
+            avg_speed = round(float(np.mean(speeds)), 1) if speeds else 0.0
+            max_speed = round(float(max(speeds)), 1) if speeds else 0.0
             
             player_stats[str(pid)] = {
                 "team": team,
-                "total_distance_m": round(dist, 1),
+                "total_distance_m": round(float(dist), 1),
                 "avg_speed_kmh": avg_speed,
                 "max_speed_kmh": max_speed,
             }
         
-        # Count shot events (confidence > 0.5)
+        # Count shot events (confidence >= 0.5)
         shot_count = sum(1 for c in self.shot_confidences if c >= 0.5)
         
         report = {
@@ -166,6 +173,10 @@ class CourtVisionAnalyticsReport:
                     "total_passes": self.team2_passes,
                     "total_interceptions": self.team2_interceptions,
                 }
+            },
+            "spatial_dominance_stats": self.voronoi_stats or {
+                "team1_avg_dominance_pct": 50.0,
+                "team2_avg_dominance_pct": 50.0
             },
             "shot_events_detected": shot_count,
             "player_stats": player_stats,
@@ -204,6 +215,10 @@ class CourtVisionAnalyticsReport:
         print(f"\n Team 2 — Possession: {report['team_stats']['team_2']['possession_pct']}%")
         print(f"          Passes: {report['team_stats']['team_2']['total_passes']}")
         print(f"          Interceptions: {report['team_stats']['team_2']['total_interceptions']}")
+        if self.voronoi_stats:
+            print(f"\n Spatial Voronoi Dominance:")
+            print(f"   Team 1 Court Dominance: {self.voronoi_stats.get('team1_avg_dominance_pct', 50.0)}%")
+            print(f"   Team 2 Court Dominance: {self.voronoi_stats.get('team2_avg_dominance_pct', 50.0)}%")
         if self.cmc_telemetry:
             print(f"\n Camera Motion Tracking Continuity (CMC):")
             print(f"   Direct Keypoints: {self.cmc_telemetry.get('direct_keypoint_pct', 0)}%")
@@ -219,14 +234,12 @@ class CourtVisionAnalyticsReport:
         import cv2
         out_name = os.path.basename(video_name).split('.')[0]
         
-        # 28m x 15m tactical court scaled to pixels (e.g. 2800 x 1500)
         WIDTH, HEIGHT = 2800, 1500
         
         grid_team1 = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
         grid_team2 = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
         
         for pid, x, y in self.heatmap_points:
-            # Scale coordinates from 200x107 to 2800x1500
             x_scaled = int((x / 200.0) * WIDTH)
             y_scaled = int((y / 107.0) * HEIGHT)
             
@@ -238,10 +251,7 @@ class CourtVisionAnalyticsReport:
                     grid_team2[y_scaled, x_scaled] += 1
                     
         def render_and_save(grid, out_path):
-            # Apply heavy Gaussian blur to create thermal blob effect
             blurred = cv2.GaussianBlur(grid, (0, 0), sigmaX=35, sigmaY=35)
-            
-            # Normalize 0-255
             max_val = np.max(blurred)
             if max_val > 0:
                 blurred = (blurred / max_val * 255).astype(np.uint8)
@@ -249,11 +259,9 @@ class CourtVisionAnalyticsReport:
                 blurred = blurred.astype(np.uint8)
                 
             heatmap = cv2.applyColorMap(blurred, cv2.COLORMAP_JET)
-            
             court_bg = cv2.imread(config.COURT_IMAGE_PATH)
             if court_bg is not None:
                 court_bg = cv2.resize(court_bg, (WIDTH, HEIGHT))
-                # Add thermal heatmap onto the court
                 blended = cv2.addWeighted(court_bg, 0.5, heatmap, 0.5, 0)
                 cv2.imwrite(out_path, blended)
             else:
@@ -261,4 +269,3 @@ class CourtVisionAnalyticsReport:
                 
         render_and_save(grid_team1, os.path.join(config.OUTPUT_DIR, f"{out_name}_team1_heatmap.jpg"))
         render_and_save(grid_team2, os.path.join(config.OUTPUT_DIR, f"{out_name}_team2_heatmap.jpg"))
-        print(f"[+] Exported Heatmaps for Team 1 and Team 2")

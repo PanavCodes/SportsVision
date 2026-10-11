@@ -1,7 +1,8 @@
-# tactical_view_drawer.py
+﻿# tactical_view_drawer.py
 
 import cv2
 import numpy as np
+from core.basketball.voronoi_dominance import VoronoiDominanceAnalyzer
 
 class TacticalViewDrawer:
     def __init__(self, team_1_color=[255, 245, 238], team_2_color=[128, 0, 0]):
@@ -18,6 +19,7 @@ class TacticalViewDrawer:
         self.previous_smoothed_positions = {}
 
         self.max_distance_threshold = 50
+        self.voronoi_analyzer = VoronoiDominanceAnalyzer(width=200, height=107)
 
     def _average_distance(self, pts1, pts2):
         """Compute average Euclidean distance between corresponding points."""
@@ -79,20 +81,7 @@ class TacticalViewDrawer:
     def draw(self, video_frames, court_image_path, width, height, tactical_court_keypoints,
              tactical_player_positions=None, player_assignment=None, ball_acquisition=None):
         """
-        Draw tactical overlays on a sequence of video frames.
-
-        Args:
-            video_frames (list): List of video frames (numpy arrays).
-            court_image_path (str): Path to the court background image.
-            width (int): Width to resize the court image.
-            height (int): Height to resize the court image.
-            tactical_court_keypoints (list): List of court keypoints per frame.
-            tactical_player_positions (list, optional): Player positions per frame.
-            player_assignment (list, optional): Player to team assignments per frame.
-            ball_acquisition (list, optional): Player IDs who hold the ball per frame.
-
-        Returns:
-            list: Video frames with tactical view overlay drawn.
+        Draw tactical overlays including Voronoi spatial dominance on a sequence of video frames.
         """
         court_img = cv2.imread(court_image_path)
         if court_img is None:
@@ -106,8 +95,7 @@ class TacticalViewDrawer:
 
         for idx, frame in enumerate(video_frames):
             frame = frame.copy()
-            # Paste court image on frame at offset
-            frame[self.start_y:self.start_y + height, self.start_x:self.start_x + width] = court_img.copy()
+            current_court = court_img.copy()
 
             current_kps = None
             if tactical_court_keypoints is not None and len(tactical_court_keypoints) > idx:
@@ -129,14 +117,7 @@ class TacticalViewDrawer:
                     if best_kps is not None:
                         self.last_valid_court_keypoints = best_kps
 
-            # Draw court keypoints
-            if tactical_court_keypoints is not None:
-                for keypoint in tactical_court_keypoints:
-                    x, y = keypoint
-                    x += self.start_x
-                    y += self.start_y
-                    cv2.circle(frame, (int(x), int(y)), 4, (0, 165, 255), -1)
-
+            # Smooth positions
             smoothed_positions = None
             if tactical_player_positions and idx < len(tactical_player_positions):
                 current_positions = tactical_player_positions[idx]
@@ -168,18 +149,38 @@ class TacticalViewDrawer:
             if ball_acquisition and idx < len(ball_acquisition):
                 self.last_ball_holder = ball_acquisition[idx]
 
-            # Draw players present this frame
+            # Compute and apply Voronoi spatial dominance overlay onto minimap
+            dom = None
+            if smoothed_positions and self.last_valid_teams:
+                dom = self.voronoi_analyzer.compute_dominance(smoothed_positions, self.last_valid_teams)
+                if dom['control_mask'] is not None:
+                    current_court = self.voronoi_analyzer.render_voronoi_overlay(
+                        current_court, dom['control_mask'], self.team_1_color, self.team_2_color, alpha=0.28
+                    )
+
+            # Paste court image with Voronoi overlay onto video frame
+            frame[self.start_y:self.start_y + height, self.start_x:self.start_x + width] = current_court
+
+            # Draw court keypoints
+            if tactical_court_keypoints is not None:
+                for keypoint in tactical_court_keypoints:
+                    x, y = keypoint
+                    x += self.start_x
+                    y += self.start_y
+                    cv2.circle(frame, (int(x), int(y)), 4, (0, 165, 255), -1)
+
+            # Draw players on minimap
             if smoothed_positions and self.last_valid_teams:
                 for pid, pos in smoothed_positions.items():
                     team = self.last_valid_teams.get(pid, 0)
                     if team == 1:
                         color = self.team_1_color
-                        text_color = (0, 0, 0)  # Black text for team 1
+                        text_color = (0, 0, 0)
                     elif team == 2:
                         color = self.team_2_color
-                        text_color = (255, 255, 255)  # White text for team 2
+                        text_color = (255, 255, 255)
                     else:
-                        color = (128, 128, 128)  # Grey for referee/unclassified
+                        color = (128, 128, 128)
                         text_color = (255, 255, 255)
 
                     x, y = int(pos[0]) + self.start_x, int(pos[1]) + self.start_y
@@ -189,6 +190,12 @@ class TacticalViewDrawer:
 
                     if pid == self.last_ball_holder:
                         cv2.circle(frame, (x, y), 12, (0, 0, 255), 2)  # Red circle for ball holder
+
+            # Render Voronoi spatial dominance badge below minimap
+            if dom and dom['team1_dominance_pct'] > 0:
+                dom_label = f"DOM: T1 {dom['team1_dominance_pct']}% | T2 {dom['team2_dominance_pct']}%"
+                cv2.putText(frame, dom_label, (self.start_x, self.start_y + height + 14),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (220, 220, 220), 1, cv2.LINE_AA)
 
             output_frames.append(frame)
 

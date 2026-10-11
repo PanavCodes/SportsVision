@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import time
 import json
@@ -276,6 +276,7 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
     # 8. Analytics Report
     print("\n[8/8] Generating Analytics Report...")
     analytics.update_cmc_telemetry(mapper.get_cmc_telemetry())
+    analytics.update_voronoi_stats(mapper.drawer.voronoi_analyzer.get_match_summary())
     analytics.save_report(out_name)
 
     if os.path.exists(checkpoint_path):
