@@ -1,12 +1,11 @@
-import unittest
-import os
-import tempfile
-
+﻿import unittest
 from core.basketball.analytics_report import CourtVisionAnalyticsReport
 
 class TestAnalyticsReport(unittest.TestCase):
     def setUp(self):
         self.report_gen = CourtVisionAnalyticsReport()
+        # Suppress writing scratch heatmap images to disk during unit tests
+        self.report_gen._export_heatmaps = lambda name: None
 
     def test_possession_and_pass_accumulation(self):
         """Tests that possession percentages and pass stats accumulate correctly."""

@@ -1,13 +1,13 @@
-import torch
-import sys
+﻿import torch
 
 def verify_cuda():
     """
     Verifies CUDA is available and prints diagnostic info.
+    Falls back gracefully to CPU without terminating the process.
     """
     if not torch.cuda.is_available():
-        print("CRITICAL ERROR: CUDA is not available. Ensure NVIDIA drivers and PyTorch with CUDA are installed.")
-        sys.exit(1)
+        print("[Hardware Diagnostics] CUDA is not available. Operating in CPU fallback mode.")
+        return False
         
     device_count = torch.cuda.device_count()
     current_device = torch.cuda.current_device()
