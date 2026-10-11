@@ -86,7 +86,9 @@ class CourtVisionMapper:
             
         self.keypoints_per_frame = self.converter.validate_keypoints(self.keypoints_per_frame)
         
-        raw_tactical_positions = self.converter.transform_players_to_tactical_view(self.keypoints_per_frame, player_tracks)
+        raw_tactical_positions = self.converter.transform_players_to_tactical_view(
+            self.keypoints_per_frame, player_tracks, video_frames=video_frames
+        )
         
         # Apply EMA smoothing to tactical positions
         smoothed_tactical_positions = []
@@ -102,10 +104,9 @@ class CourtVisionMapper:
                 smoothed_pos = self.ema_tactical_positions[player_id].tolist()
                 smoothed_frame[player_id] = smoothed_pos
                 
-                # Sideline filter: ignore people way outside the 2800x1500 court bounds
-                # Basketball court is 28m x 15m. Allow a small 2-meter margin (200px)
+                # Sideline filter: ignore entities outside the 200x107 court bounds with 10% margin
                 sx, sy = smoothed_pos
-                if sx < -200 or sx > 3000 or sy < -200 or sy > 1700:
+                if sx < -20 or sx > 220 or sy < -15 or sy > 122:
                     if player_id in player_tracks[i]:
                         player_tracks[i][player_id]['team'] = 0  # Ignore out-of-bounds entity
                         
@@ -114,6 +115,11 @@ class CourtVisionMapper:
         self.tactical_player_positions = smoothed_tactical_positions
         
         return player_tracks, ball_tracks
+
+    def get_cmc_telemetry(self):
+        """Returns empirical tracking continuity metrics for paper ablation tables."""
+        return self.converter.get_telemetry_summary()
+
 
     def render_tactical_view(self, output_video_frames: list, player_tracks: list, ball_tracks: list, ball_possession: list = None):
         if self.keypoint_detector is None or self.keypoints_per_frame is None:

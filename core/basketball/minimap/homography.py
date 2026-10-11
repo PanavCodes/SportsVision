@@ -89,7 +89,8 @@ class Homography:
                 raise ValueError("Homography estimation failed and no previous fallback provided.")
 
         inliers_count = np.sum(mask)
-        if inliers_count < min_inliers:
+        required_inliers = min(self.min_inliers, len(image_points))
+        if inliers_count < required_inliers:
             if prev_H is not None:
                 self.homography_matrix = prev_H
                 return

@@ -171,23 +171,16 @@ class TacticalViewDrawer:
             # Draw players present this frame
             if smoothed_positions and self.last_valid_teams:
                 for pid, pos in smoothed_positions.items():
-                    if pid == 26:
-                        continue  # Skip drawing player with ID 26
-
-                    if pid == 6:
+                    team = self.last_valid_teams.get(pid, 0)
+                    if team == 1:
                         color = self.team_1_color
                         text_color = (0, 0, 0)  # Black text for team 1
-                    elif pid == 13:
+                    elif team == 2:
                         color = self.team_2_color
                         text_color = (255, 255, 255)  # White text for team 2
                     else:
-                        team = self.last_valid_teams.get(pid, 0)
-                        if team == 1:
-                            color = self.team_1_color
-                            text_color = (0, 0, 0)  # Black text
-                        else:
-                            color = self.team_2_color
-                            text_color = (255, 255, 255)  # White text
+                        color = (128, 128, 128)  # Grey for referee/unclassified
+                        text_color = (255, 255, 255)
 
                     x, y = int(pos[0]) + self.start_x, int(pos[1]) + self.start_y
                     cv2.circle(frame, (x, y), 8, color, -1)

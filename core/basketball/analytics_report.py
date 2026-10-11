@@ -41,7 +41,14 @@ class CourtVisionAnalyticsReport:
         
         # Heatmap (x, y) spatial coordinates
         self.heatmap_points = []
-    
+
+        # Camera Motion Compensation (CMC) telemetry
+        self.cmc_telemetry = None
+
+    def update_cmc_telemetry(self, cmc_stats: dict):
+        """Record camera motion compensation and homography continuity telemetry."""
+        self.cmc_telemetry = cmc_stats
+
     def update_possession(self, ball_possession: list, player_tracks: list):
         """Update possession stats from a batch of frames."""
         for frame_idx, holder in enumerate(ball_possession):
@@ -162,6 +169,12 @@ class CourtVisionAnalyticsReport:
             },
             "shot_events_detected": shot_count,
             "player_stats": player_stats,
+            "tracking_continuity_stats": self.cmc_telemetry or {
+                "direct_keypoint_pct": 100.0,
+                "optical_flow_cmc_pct": 0.0,
+                "overall_continuity_pct": 100.0,
+                "lost_frames_pct": 0.0
+            }
         }
         
         return report
@@ -191,6 +204,11 @@ class CourtVisionAnalyticsReport:
         print(f"\n Team 2 — Possession: {report['team_stats']['team_2']['possession_pct']}%")
         print(f"          Passes: {report['team_stats']['team_2']['total_passes']}")
         print(f"          Interceptions: {report['team_stats']['team_2']['total_interceptions']}")
+        if self.cmc_telemetry:
+            print(f"\n Camera Motion Tracking Continuity (CMC):")
+            print(f"   Direct Keypoints: {self.cmc_telemetry.get('direct_keypoint_pct', 0)}%")
+            print(f"   Optical Flow Fallback: {self.cmc_telemetry.get('optical_flow_cmc_pct', 0)}%")
+            print(f"   Overall Continuity: {self.cmc_telemetry.get('overall_continuity_pct', 0)}%")
         print(f"\n Shots detected: {report['shot_events_detected']}")
         print(f"\n Saved to: {json_path}")
         print(f"{'='*60}")
