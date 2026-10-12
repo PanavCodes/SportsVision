@@ -360,16 +360,39 @@ function initUploadZone() {
   const dropZone = elements.uploadDropZone;
   const fileInput = elements.uploadInput;
 
-  ['dragenter', 'dragover'].forEach(e => {
-    dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.add('drag-over'); });
+  if (!dropZone || !fileInput) return;
+
+  // Prevent browser default behavior (opening file in tab) when dragging onto window
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    window.addEventListener(eventName, (e) => {
+      e.preventDefault();
+    }, false);
   });
+
+  ['dragenter', 'dragover'].forEach(e => {
+    dropZone.addEventListener(e, (ev) => { 
+      ev.preventDefault(); 
+      ev.stopPropagation(); 
+      dropZone.classList.add('drag-over'); 
+    });
+  });
+
   ['dragleave', 'drop'].forEach(e => {
-    dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener(e, (ev) => { 
+      ev.preventDefault(); 
+      ev.stopPropagation(); 
+      dropZone.classList.remove('drag-over'); 
+    });
   });
 
   dropZone.addEventListener('drop', (e) => {
-    const files = e.dataTransfer.files;
-    if (files.length > 0) uploadFile(files[0]);
+    e.preventDefault();
+    e.stopPropagation();
+    const dt = e.dataTransfer;
+    const files = dt ? dt.files : null;
+    if (files && files.length > 0) {
+      uploadFile(files[0]);
+    }
   });
 
   dropZone.addEventListener('click', (e) => {
@@ -378,7 +401,7 @@ function initUploadZone() {
   });
 
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files[0]) uploadFile(e.target.files[0]);
+    if (e.target.files && e.target.files[0]) uploadFile(e.target.files[0]);
     fileInput.value = '';
   });
 }
@@ -660,7 +683,6 @@ function setPipelineRunningUI(isRunning) {
 }
 
 // ========================== Resilient Streaming & Heartbeat Polling ==========================
-let eventSource = null;
 let statusPollingInterval = null;
 
 function startStatusPolling() {

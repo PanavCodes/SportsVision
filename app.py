@@ -373,7 +373,14 @@ def find_available_videos():
     video_exts = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
     videos = []
 
-    search_dirs = [DATA_DIR, DATA_DIR / "videos", DATA_DIR / "videos" / "basketball", DATA_DIR / "videos" / "cricket"]
+    search_dirs = [
+        DATA_DIR,
+        DATA_DIR / "videos",
+        DATA_DIR / "basketball",
+        DATA_DIR / "cricket",
+        DATA_DIR / "videos" / "basketball",
+        DATA_DIR / "videos" / "cricket",
+    ]
     for sdir in search_dirs:
         if sdir.exists():
             for f in sdir.iterdir():
@@ -911,7 +918,14 @@ async def start_pipeline(
 
     if not Path(video_path).exists():
         # Check in DATA_DIR and subdirs
-        for candidate_dir in [DATA_DIR, DATA_DIR / "videos", DATA_DIR / "videos" / "basketball", DATA_DIR / "videos" / "cricket"]:
+        for candidate_dir in [
+            DATA_DIR,
+            DATA_DIR / "videos",
+            DATA_DIR / "basketball",
+            DATA_DIR / "cricket",
+            DATA_DIR / "videos" / "basketball",
+            DATA_DIR / "videos" / "cricket",
+        ]:
             candidate = candidate_dir / video_path
             if candidate.exists():
                 video_path = str(candidate)
