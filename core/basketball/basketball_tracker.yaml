@@ -7,7 +7,7 @@ match_thresh: 0.8
 fuse_score: True
 with_reid: False
 
-gmc_method: sparseOptFlow
+gmc_method: none
 proximity_thresh: 0.5
 appearance_thresh: 0.25
 with_reid: False
