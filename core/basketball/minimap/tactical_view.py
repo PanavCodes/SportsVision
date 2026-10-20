@@ -217,7 +217,7 @@ class TacticalViewConverter:
                         tactical_pos = cv2.perspectiveTransform(player_position, H_current).reshape(-1, 2)
                         x, y = float(tactical_pos[0][0]), float(tactical_pos[0][1])
 
-                        # Allow slight 15% out-of-bounds cushion before discarding
+                        # Allow slight 15% out-of-bounds cushion and clamp to minimap bounds [0, width] x [0, height]
                         if -self.width * 0.15 <= x <= self.width * 1.15 and -self.height * 0.15 <= y <= self.height * 1.15:
                             x_clamped = max(0.0, min(float(self.width), x))
                             y_clamped = max(0.0, min(float(self.height), y))

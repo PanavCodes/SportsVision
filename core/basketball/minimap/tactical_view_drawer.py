@@ -1,4 +1,4 @@
-﻿# tactical_view_drawer.py
+# tactical_view_drawer.py
 
 import cv2
 import numpy as np
@@ -183,13 +183,15 @@ class TacticalViewDrawer:
                         color = (128, 128, 128)
                         text_color = (255, 255, 255)
 
-                    x, y = int(pos[0]) + self.start_x, int(pos[1]) + self.start_y
-                    cv2.circle(frame, (x, y), 8, color, -1)
-                    cv2.putText(frame, str(pid), (x - 5, y - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
+                    # Only render entities that are inside the court boundaries
+                    if 0 <= pos[0] <= width and 0 <= pos[1] <= height:
+                        x, y = int(pos[0]) + self.start_x, int(pos[1]) + self.start_y
+                        cv2.circle(frame, (x, y), 8, color, -1)
+                        cv2.putText(frame, str(pid), (x - 5, y - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
 
-                    if pid == self.last_ball_holder:
-                        cv2.circle(frame, (x, y), 12, (0, 0, 255), 2)  # Red circle for ball holder
+                        if pid == self.last_ball_holder:
+                            cv2.circle(frame, (x, y), 12, (0, 0, 255), 2)  # Red circle for ball holder
 
             # Render Voronoi spatial dominance badge below minimap
             if dom and dom['team1_dominance_pct'] > 0:

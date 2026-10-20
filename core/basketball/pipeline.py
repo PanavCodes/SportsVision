@@ -222,7 +222,7 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
         # [Stage J] Update Analytics
         analytics.update_possession(ball_possession, player_tracks)
         analytics.update_passes(passes, interceptions)
-        analytics.update_heatmaps(mapper.tactical_player_positions)
+        analytics.update_heatmaps(mapper.tactical_player_positions, player_tracks)
         analytics.update_team_assignments(player_tracks)
         if distances_data:
             analytics.update_distances(distances_data)

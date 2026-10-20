@@ -100,11 +100,18 @@ class CourtVisionMapper:
                 smoothed_pos = self.ema_tactical_positions[player_id].tolist()
                 smoothed_frame[player_id] = smoothed_pos
                 
-                # Sideline filter: ignore entities outside the 200x107 court bounds with 10% margin
+                # Sideline & boundary filter:
+                # Entities clamped to the outer perimeter (sx <= 0.5 or sx >= 199.5 or sy <= 0.5 or sy >= 106.5)
+                # or projected beyond court bounds are coaches, bench players, referees, or sideline entities.
                 sx, sy = smoothed_pos
-                if sx < -20 or sx > 220 or sy < -15 or sy > 122:
-                    if player_id in player_tracks[i]:
-                        player_tracks[i][player_id]['team'] = 0  # Ignore out-of-bounds entity
+                is_out_of_bounds = (sx <= 0.5 or sx >= 199.5 or sy <= 0.5 or sy >= 106.5)
+                
+                if player_id in player_tracks[i]:
+                    if is_out_of_bounds:
+                        player_tracks[i][player_id]['team'] = 0
+                        player_tracks[i][player_id]['is_sideline'] = True
+                    else:
+                        player_tracks[i][player_id].setdefault('is_sideline', False)
                         
             smoothed_tactical_positions.append(smoothed_frame)
             

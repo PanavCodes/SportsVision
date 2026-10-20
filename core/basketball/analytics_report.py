@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import numpy as np
 from datetime import datetime
@@ -109,13 +109,33 @@ class CourtVisionAnalyticsReport:
         """Accumulate shot confidence values."""
         self.shot_confidences.extend(confidences)
         
-    def update_heatmaps(self, tactical_positions: list):
-        """Accumulate (x, y) coordinates for heatmaps."""
+    def update_heatmaps(self, tactical_positions: list, player_tracks: list = None):
+        """
+        Accumulate (x, y) coordinates for heatmaps.
+        Filters out points outside the active playing court boundaries to prevent edge artifacts.
+        Optionally uses frame-level player tracks to capture real-time team assignments.
+        """
         if not tactical_positions:
             return
-        for frame_pos in tactical_positions:
+        for f_idx, frame_pos in enumerate(tactical_positions):
+            frame_tracks = player_tracks[f_idx] if (player_tracks and f_idx < len(player_tracks)) else {}
             for pid, (x, y) in frame_pos.items():
-                self.heatmap_points.append((pid, int(x), int(y)))
+                # Strictly filter out coordinates outside the court lines [1, 199] x [1, 106].
+                # This eliminates boundary wall accumulation from sideline entities.
+                if x < 1.0 or x > 199.0 or y < 1.0 or y > 106.0:
+                    continue
+                
+                # Check frame team tag if available
+                team_override = None
+                if frame_tracks and pid in frame_tracks:
+                    p_data = frame_tracks[pid]
+                    if p_data.get('is_sideline', False):
+                        continue
+                    team_override = p_data.get('team', None)
+                    if team_override == 0:
+                        continue
+                
+                self.heatmap_points.append((pid, float(x), float(y), team_override))
     
     def update_frame_count(self, n_frames: int):
         self.total_frames += n_frames
@@ -129,9 +149,6 @@ class CourtVisionAnalyticsReport:
     
     def generate_report(self, video_name: str) -> dict:
         """Generate the final analytics report."""
-        
-        # Export thermal heatmaps
-        self._export_heatmaps(video_name)
         
         total_possession = self.team1_possession_frames + self.team2_possession_frames
         
@@ -152,6 +169,9 @@ class CourtVisionAnalyticsReport:
                 "avg_speed_kmh": avg_speed,
                 "max_speed_kmh": max_speed,
             }
+        
+        # Export thermal heatmaps with player_stats context for stationary entity filtering
+        self._export_heatmaps(video_name, player_stats)
         
         # Count shot events (confidence >= 0.5)
         shot_count = sum(1 for c in self.shot_confidences if c >= 0.5)
@@ -230,7 +250,7 @@ class CourtVisionAnalyticsReport:
         
         return json_path
 
-    def _export_heatmaps(self, video_name: str):
+    def _export_heatmaps(self, video_name: str, player_stats: dict = None):
         import cv2
         out_name = os.path.basename(video_name).split('.')[0]
         
@@ -238,34 +258,84 @@ class CourtVisionAnalyticsReport:
         
         grid_team1 = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
         grid_team2 = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
+        grid_match = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
         
-        for pid, x, y in self.heatmap_points:
+        # Stationary entity filter:
+        # In matches with >= 90 frames, filter out tracks that never move (benches, coaches, static refs).
+        # A real on-court player covers distance and moves faster than 0.8 km/h.
+        stationary_pids = set()
+        if player_stats and self.total_frames >= 90:
+            for pid_str, stats in player_stats.items():
+                pid = int(pid_str) if pid_str.isdigit() else pid_str
+                if stats.get('total_distance_m', 0.0) < 3.0 or stats.get('avg_speed_kmh', 0.0) < 0.8:
+                    stationary_pids.add(pid)
+
+        for pt in self.heatmap_points:
+            if len(pt) == 4:
+                pid, x, y, team_override = pt
+            else:
+                pid, x, y = pt
+                team_override = None
+                
+            if pid in stationary_pids:
+                continue
+
             x_scaled = int((x / 200.0) * WIDTH)
             y_scaled = int((y / 107.0) * HEIGHT)
             
-            if 0 <= x_scaled < WIDTH and 0 <= y_scaled < HEIGHT:
-                team = self._get_player_team(pid)
+            # Additional boundary safeguard: ignore points within 15px of outer canvas edges
+            if 15 <= x_scaled < (WIDTH - 15) and 15 <= y_scaled < (HEIGHT - 15):
+                team = team_override if (team_override in [1, 2]) else self._get_player_team(pid)
                 if team == 1:
                     grid_team1[y_scaled, x_scaled] += 1
+                    grid_match[y_scaled, x_scaled] += 1
                 elif team == 2:
                     grid_team2[y_scaled, x_scaled] += 1
+                    grid_match[y_scaled, x_scaled] += 1
                     
         def render_and_save(grid, out_path):
-            blurred = cv2.GaussianBlur(grid, (0, 0), sigmaX=35, sigmaY=35)
-            max_val = np.max(blurred)
-            if max_val > 0:
-                blurred = (blurred / max_val * 255).astype(np.uint8)
+            if np.sum(grid) == 0:
+                court_bg = cv2.imread(config.COURT_IMAGE_PATH)
+                if court_bg is not None:
+                    court_bg = cv2.resize(court_bg, (WIDTH, HEIGHT))
+                    cv2.imwrite(out_path, court_bg)
+                return
+
+            # Broadcast-standard Gaussian KDE smoothing (~0.65m radius at 2800x1500)
+            blurred = cv2.GaussianBlur(grid, (0, 0), sigmaX=65, sigmaY=65)
+            
+            # Robust 98th percentile normalization prevents a single static cluster from washing out dynamic player heat
+            pos_vals = blurred[blurred > 0]
+            if len(pos_vals) > 0:
+                vmax = np.percentile(pos_vals, 98)
+                if vmax <= 0:
+                    vmax = np.max(blurred)
+                norm = np.clip(blurred / vmax, 0.0, 1.0)
+                norm_8u = (norm * 255).astype(np.uint8)
             else:
-                blurred = blurred.astype(np.uint8)
-                
-            heatmap = cv2.applyColorMap(blurred, cv2.COLORMAP_JET)
+                norm_8u = np.zeros_like(blurred, dtype=np.uint8)
+                norm = np.zeros_like(blurred, dtype=np.float32)
+
+            heatmap = cv2.applyColorMap(norm_8u, cv2.COLORMAP_JET)
             court_bg = cv2.imread(config.COURT_IMAGE_PATH)
-            if court_bg is not None:
-                court_bg = cv2.resize(court_bg, (WIDTH, HEIGHT))
-                blended = cv2.addWeighted(court_bg, 0.5, heatmap, 0.5, 0)
-                cv2.imwrite(out_path, blended)
-            else:
+            if court_bg is None:
                 cv2.imwrite(out_path, heatmap)
+                return
+                
+            court_bg = cv2.resize(court_bg, (WIDTH, HEIGHT))
+            
+            # Alpha compositing: 0 alpha where heat is below 0.05 threshold (crystal-clear hardwood court!)
+            # Smooth alpha ramp up to 0.70 for professional broadcast thermal visual
+            thresh = 0.05
+            alpha = np.zeros_like(norm, dtype=np.float32)
+            mask = norm >= thresh
+            alpha[mask] = 0.20 + 0.50 * ((norm[mask] - thresh) / (1.0 - thresh))
+            alpha = np.clip(alpha, 0.0, 0.70)
+            alpha_3d = np.repeat(alpha[:, :, np.newaxis], 3, axis=2)
+            
+            blended = (court_bg.astype(np.float32) * (1.0 - alpha_3d) + heatmap.astype(np.float32) * alpha_3d).astype(np.uint8)
+            cv2.imwrite(out_path, blended)
                 
         render_and_save(grid_team1, os.path.join(config.OUTPUT_DIR, f"{out_name}_team1_heatmap.jpg"))
         render_and_save(grid_team2, os.path.join(config.OUTPUT_DIR, f"{out_name}_team2_heatmap.jpg"))
+        render_and_save(grid_match, os.path.join(config.OUTPUT_DIR, f"{out_name}_match_heatmap.jpg"))
