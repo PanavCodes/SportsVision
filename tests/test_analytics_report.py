@@ -69,5 +69,64 @@ class TestAnalyticsReport(unittest.TestCase):
         retained_pids = [pt[0] for pt in self.report_gen.heatmap_points]
         self.assertEqual(retained_pids, [1])
 
+    def test_referee_exclusion_from_player_stats(self):
+        """Tests that match officials and referees are strictly excluded from player_stats."""
+        player_tracks = [
+            {
+                1: {'team': 1, 'jersey_number': '23', 'is_referee': False},
+                2: {'team': 0, 'is_referee': True},
+                3: {'team': 1, 'is_referee': True},
+            }
+            for _ in range(20)
+        ]
+        self.report_gen.update_team_assignments(player_tracks)
+        self.report_gen.update_distances([{1: 5.0, 2: 12.0, 3: 8.0} for _ in range(20)])
+        self.report_gen.update_speeds([{1: 15.0, 2: 18.0, 3: 14.0} for _ in range(20)])
+        self.report_gen.update_frame_count(20)
+
+        report = self.report_gen.generate_report('test_game')
+        stats = report['player_stats']
+
+        # Only Player 1 should be present; Referee 2 and Official 3 must be excluded
+        self.assertIn('1', stats)
+        self.assertNotIn('2', stats)
+        self.assertNotIn('3', stats)
+        self.assertEqual(stats['1']['team'], 1)
+        self.assertEqual(stats['1']['jersey_number'], '23')
+
+    def test_jersey_matching_and_track_consolidation(self):
+        """Tests that fragmented tracks with the same team and jersey are consolidated into one player."""
+        # Track 4 appears in frames 0..19 (Team 1, Jersey 7)
+        batch1 = [
+            {4: {'team': 1, 'jersey_number': '7', 'is_referee': False}}
+            for _ in range(20)
+        ]
+        self.report_gen.update_team_assignments(batch1)
+        self.report_gen.update_distances([{4: 5.0} for _ in range(20)]) # 100.0m
+        self.report_gen.update_speeds([{4: 10.0} for _ in range(20)])
+        self.report_gen.update_frame_count(20)
+
+        # Track 19 appears in frames 20..34 after a cut (Same Team 1, Same Jersey 7)
+        batch2 = [
+            {19: {'team': 1, 'jersey_number': '7', 'is_referee': False}}
+            for _ in range(15)
+        ]
+        self.report_gen.update_team_assignments(batch2)
+        self.report_gen.update_distances([{19: 4.0} for _ in range(15)]) # 60.0m
+        self.report_gen.update_speeds([{19: 16.0} for _ in range(15)])
+        self.report_gen.update_frame_count(15)
+
+        report = self.report_gen.generate_report('test_game')
+        stats = report['player_stats']
+
+        # Should be consolidated under primary track 4
+        self.assertIn('4', stats)
+        self.assertNotIn('19', stats)
+        player_7 = stats['4']
+        self.assertEqual(player_7['jersey_number'], '7')
+        self.assertEqual(set(player_7['track_ids']), {4, 19})
+        self.assertEqual(player_7['total_distance_m'], 160.0)
+        self.assertEqual(player_7['max_speed_kmh'], 16.0)
+
 if __name__ == '__main__':
     unittest.main()

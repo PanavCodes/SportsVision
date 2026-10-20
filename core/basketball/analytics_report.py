@@ -31,6 +31,14 @@ class CourtVisionAnalyticsReport:
         
         # Per-player team assignment (majority vote)
         self.player_team_votes = {}  # {player_id: {team: count}}
+
+        # Per-player jersey numbers (majority vote)
+        self.player_jersey_votes = {}  # {player_id: {jersey_str: count}}
+
+        # Per-player referee and frame tracking
+        self.player_referee_votes = {}  # {player_id: count}
+        self.player_frame_counts = {}   # {player_id: count}
+        self.player_active_frames = {}  # {player_id: set(frame_indices)}
         
         # Shot events
         self.shot_confidences = []
@@ -97,13 +105,31 @@ class CourtVisionAnalyticsReport:
                     self.player_speed_samples[pid].append(speed)
     
     def update_team_assignments(self, player_tracks: list):
-        """Track team assignments for majority voting."""
-        for frame_tracks in player_tracks:
+        """Track team assignments, jersey numbers, and referee flags for players."""
+        for frame_offset, frame_tracks in enumerate(player_tracks):
+            global_frame = self.total_frames + frame_offset
             for pid, data in frame_tracks.items():
+                self.player_frame_counts[pid] = self.player_frame_counts.get(pid, 0) + 1
+                
+                if pid not in self.player_active_frames:
+                    self.player_active_frames[pid] = set()
+                self.player_active_frames[pid].add(global_frame)
+                
                 team = data.get('team', 0)
                 if pid not in self.player_team_votes:
                     self.player_team_votes[pid] = {}
                 self.player_team_votes[pid][team] = self.player_team_votes[pid].get(team, 0) + 1
+                
+                if data.get('is_referee', False) or data.get('is_sideline', False) or team == 0:
+                    self.player_referee_votes[pid] = self.player_referee_votes.get(pid, 0) + 1
+                
+                jersey = data.get('jersey_number')
+                if jersey is not None:
+                    jersey_str = str(jersey).strip()
+                    if jersey_str and jersey_str.isdigit():
+                        if pid not in self.player_jersey_votes:
+                            self.player_jersey_votes[pid] = {}
+                        self.player_jersey_votes[pid][jersey_str] = self.player_jersey_votes[pid].get(jersey_str, 0) + 1
     
     def update_shots(self, confidences: list):
         """Accumulate shot confidence values."""
@@ -146,26 +172,121 @@ class CourtVisionAnalyticsReport:
             return 0
         votes = self.player_team_votes[pid]
         return max(votes.items(), key=lambda x: x[1])[0]
+        
+    def _is_referee(self, pid) -> bool:
+        """Determines if a track is a referee or match official."""
+        team = self._get_player_team(pid)
+        if team == 0:
+            return True
+        ref_votes = self.player_referee_votes.get(pid, 0)
+        total = self.player_frame_counts.get(pid, 1)
+        return (ref_votes / max(1, total)) >= 0.25
+
+    def _get_player_jersey(self, pid):
+        """Get the majority-voted jersey number for a player track."""
+        if pid not in self.player_jersey_votes:
+            return None
+        votes = self.player_jersey_votes[pid]
+        if not votes:
+            return None
+        return max(votes.items(), key=lambda x: x[1])[0]
     
     def generate_report(self, video_name: str) -> dict:
         """Generate the final analytics report."""
         
         total_possession = self.team1_possession_frames + self.team2_possession_frames
         
-        # Per-player stats
-        player_stats = {}
+        # Per-player stats: strictly exclude Match Officials / Referees (team == 0)
+        # Consolidate tracks belonging to the same player (matching team and jersey number)
         all_player_ids = set(self.player_team_votes.keys()) | set(self.player_distances.keys()) | set(self.player_speed_samples.keys())
         
+        valid_tracks = []
         for pid in all_player_ids:
+            # Strictly filter out referees and match officials
+            if self._is_referee(pid):
+                continue
             team = self._get_player_team(pid)
+            if team not in (1, 2):
+                continue
+                
             dist = self.player_distances.get(pid, 0.0)
+            frames_count = self.player_frame_counts.get(pid, 0)
             speeds = self.player_speed_samples.get(pid, [])
-            avg_speed = round(float(np.mean(speeds)), 1) if speeds else 0.0
-            max_speed = round(float(max(speeds)), 1) if speeds else 0.0
             
-            player_stats[str(pid)] = {
+            # Suppress transient ghost tracks from cuts/false detections (< 10 frames and < 1.0m)
+            if frames_count > 0 and frames_count < 10 and dist < 1.0 and len(speeds) < 5:
+                continue
+                
+            jersey = self._get_player_jersey(pid)
+            active_frames = self.player_active_frames.get(pid, set())
+            
+            valid_tracks.append({
+                'pid': pid,
+                'team': team,
+                'jersey': jersey,
+                'dist': dist,
+                'speeds': speeds,
+                'frames_count': frames_count,
+                'active_frames': active_frames
+            })
+            
+        # Group by (team, jersey) where jersey is known, resolving any overlapping conflicts
+        jersey_tracks = {}
+        unassigned_tracks = []
+        
+        for t in valid_tracks:
+            j = t['jersey']
+            if j is not None:
+                key = (t['team'], j)
+                if key not in jersey_tracks:
+                    jersey_tracks[key] = []
+                jersey_tracks[key].append(t)
+            else:
+                unassigned_tracks.append(t)
+                
+        consolidated_groups = []
+        for (team, j), t_list in jersey_tracks.items():
+            if len(t_list) == 1:
+                consolidated_groups.append(t_list)
+            else:
+                # Sort descending by votes for this jersey
+                t_list.sort(key=lambda tr: self.player_jersey_votes.get(tr['pid'], {}).get(j, 0), reverse=True)
+                primary_group = [t_list[0]]
+                for other in t_list[1:]:
+                    # Check temporal overlap: two distinct players on the court simultaneously
+                    has_overlap = any(len(other['active_frames'] & p['active_frames']) > 10 for p in primary_group)
+                    if not has_overlap:
+                        primary_group.append(other)
+                    else:
+                        other['jersey'] = None
+                        unassigned_tracks.append(other)
+                consolidated_groups.append(primary_group)
+                
+        player_stats = {}
+        all_groups = consolidated_groups + [[t] for t in unassigned_tracks]
+        for grp in all_groups:
+            # Sort by frame count so primary pid is the longest active track segment
+            grp.sort(key=lambda tr: tr['frames_count'], reverse=True)
+            primary_pid = grp[0]['pid']
+            team = grp[0]['team']
+            jersey = grp[0]['jersey']
+            
+            track_ids = [tr['pid'] for tr in grp]
+            total_dist = sum(tr['dist'] for tr in grp)
+            combined_speeds = []
+            for tr in grp:
+                combined_speeds.extend(tr['speeds'])
+                
+            avg_speed = round(float(np.mean(combined_speeds)), 1) if combined_speeds else 0.0
+            max_speed = round(float(max(combined_speeds)), 1) if combined_speeds else 0.0
+            player_label = f"#{jersey}" if jersey else f"Track #{primary_pid}"
+            
+            player_stats[str(primary_pid)] = {
                 "team": team,
-                "total_distance_m": round(float(dist), 1),
+                "jersey_number": jersey,
+                "track_ids": track_ids,
+                "display_label": player_label,
+                "total_distance_m": round(float(total_dist), 1),
                 "avg_speed_kmh": avg_speed,
                 "max_speed_kmh": max_speed,
             }
@@ -266,9 +387,10 @@ class CourtVisionAnalyticsReport:
         stationary_pids = set()
         if player_stats and self.total_frames >= 90:
             for pid_str, stats in player_stats.items():
-                pid = int(pid_str) if pid_str.isdigit() else pid_str
+                pids = stats.get('track_ids', [int(pid_str) if pid_str.isdigit() else pid_str])
                 if stats.get('total_distance_m', 0.0) < 3.0 or stats.get('avg_speed_kmh', 0.0) < 0.8:
-                    stationary_pids.add(pid)
+                    for p in pids:
+                        stationary_pids.add(p)
 
         for pt in self.heatmap_points:
             if len(pt) == 4:

@@ -39,7 +39,7 @@ class CourtVisionPlayerID:
             tracks = player_tracks[frame_idx]
             
             for player_id, data in tracks.items():
-                if data.get('team') == 0:  # Skip referees
+                if data.get('team') == 0 or data.get('is_referee', False) or data.get('is_sideline', False):  # Skip referees & sideline
                     continue
                     
                 # 1. Fast Path: If jersey number is already locked, reuse immediately without OCR
@@ -93,9 +93,10 @@ class CourtVisionPlayerID:
                     self.track_history[player_id] = {}
                     
                 for (bbox_ocr, text, prob) in results:
+                    clean_text = str(text).strip()
                     # Valid basketball jersey numbers are 1 or 2 digits (0-99)
-                    if prob > 0.35 and 1 <= len(text) <= 2:
-                        self.track_history[player_id][text] = self.track_history[player_id].get(text, 0) + prob
+                    if prob > 0.35 and 1 <= len(clean_text) <= 2 and clean_text.isdigit():
+                        self.track_history[player_id][clean_text] = self.track_history[player_id].get(clean_text, 0) + prob
                 
                 best_number = self._get_best_number(player_id)
                 

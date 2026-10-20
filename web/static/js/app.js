@@ -966,13 +966,39 @@ function populateBasketballAnalyticsUI(data) {
     const players = Object.entries(data.player_stats).map(([pid, pdata]) => ({ id: pid, ...pdata }));
     players.sort((a, b) => (b.total_distance_m || 0) - (a.total_distance_m || 0));
 
-    players.forEach(p => {
+    // Strictly filter out referees and match officials (only Team 1 & Team 2)
+    const validPlayers = players.filter(p => p.team === 1 || p.team === 2);
+
+    if (validPlayers.length === 0) {
+      elements.playerTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 25px;">
+            No on-court player telemetry detected.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    validPlayers.forEach(p => {
       const tr = document.createElement('tr');
-      const teamClass = p.team === 1 ? 'team1' : (p.team === 2 ? 'team2' : 'ref');
-      const teamLabel = p.team === 1 ? 'Team 1' : (p.team === 2 ? 'Team 2' : 'Referee');
+      const teamClass = p.team === 1 ? 'team1' : 'team2';
+      const teamLabel = p.team === 1 ? 'Team 1' : 'Team 2';
+
+      let playerIdentifier = '';
+      if (p.jersey_number) {
+        playerIdentifier = `
+          <div style="display: inline-flex; align-items: baseline; gap: 6px;">
+            <span style="font-weight: 800; font-family: var(--font-mono); font-size: 1.05rem; color: #ff9f43;">#${p.jersey_number}</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">(Track #${p.id})</span>
+          </div>
+        `;
+      } else {
+        playerIdentifier = `<span style="font-family: var(--font-mono); color: var(--text-secondary); font-weight: 600;">Track #${p.id}</span>`;
+      }
 
       tr.innerHTML = `
-        <td style="font-weight: 700; font-family: var(--font-mono);">#${p.id}</td>
+        <td>${playerIdentifier}</td>
         <td><span class="player-team-pill ${teamClass}">${teamLabel}</span></td>
         <td style="font-family: var(--font-mono); font-weight: 600;">${p.total_distance_m || 0} m</td>
         <td style="font-family: var(--font-mono);">${p.avg_speed_kmh || 0} km/h</td>
