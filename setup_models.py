@@ -22,41 +22,47 @@ os.makedirs(config.CRICKET_MODELS_DIR, exist_ok=True)
 # -------------------------------------------------------------
 print("\n[1/3] Verifying Shared Base Models...")
 
-# 1.1 YOLOv8m (Shared Player/Person Detector)
-yolo_url = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt"
+# 1.1 YOLO11s / YOLOv8m (Shared Player/Person Detector)
 yolo_path = config.PLAYER_MODEL_PATH
 if os.path.exists(yolo_path):
     size_mb = os.path.getsize(yolo_path) / (1024 * 1024)
-    print(f"  [OK] YOLOv8m verified: {yolo_path} ({size_mb:.1f} MB)")
+    print(f"  [OK] Player model verified: {yolo_path} ({size_mb:.1f} MB)")
 else:
-    print(f"  Downloading YOLOv8m to {yolo_path}...")
+    print(f"  Downloading YOLO11s to {yolo_path}...")
     try:
-        urllib.request.urlretrieve(yolo_url, yolo_path)
-        print("  [OK] YOLOv8m downloaded successfully.")
+        from ultralytics import YOLO
+        YOLO("yolo11s.pt")
+        downloaded = os.path.abspath("yolo11s.pt")
+        if os.path.exists(downloaded):
+            os.replace(downloaded, yolo_path)
+            print("  [OK] YOLO11s downloaded successfully.")
     except Exception as e:
-        print(f"  [FAIL] Failed to download YOLOv8m: {e}")
+        print(f"  [FAIL] Failed to download YOLO11s: {e}")
 
-# 1.2 SAM2.1 Small (Player Segmentation)
-sam2_path = config.SAM_MODEL_PATH
-if not os.path.exists(sam2_path):
-    print(f"  Downloading Ultralytics SAM2.1 Small to {sam2_path}...")
+# 1.2 FastSAM-s & SAM2.1 (Player Segmentation)
+fastsam_path = config.FASTSAM_MODEL_PATH
+if not os.path.exists(fastsam_path):
+    print(f"  Downloading Ultralytics FastSAM-s to {fastsam_path}...")
     try:
-        from ultralytics import SAM
-        SAM("sam2.1_s.pt")
-        downloaded_path = os.path.abspath("sam2.1_s.pt")
+        from ultralytics import FastSAM
+        FastSAM("FastSAM-s.pt")
+        downloaded_path = os.path.abspath("FastSAM-s.pt")
         if os.path.exists(downloaded_path):
-            os.replace(downloaded_path, sam2_path)
-            print("  [OK] SAM2.1 Small moved to models/shared/ successfully.")
-        else:
-            print("  [WARN] SAM2.1 checkpoint was not found at root.")
+            os.replace(downloaded_path, fastsam_path)
+            print("  [OK] FastSAM-s moved to models/shared/ successfully.")
     except Exception as e:
-        print(f"  [FAIL] Failed to download SAM2.1: {e}")
+        print(f"  [FAIL] Failed to download FastSAM-s: {e}")
 else:
+    size_mb = os.path.getsize(fastsam_path) / (1024 * 1024)
+    print(f"  [OK] FastSAM-s verified: {fastsam_path} ({size_mb:.1f} MB)")
+
+sam2_path = config.SAM_MODEL_PATH
+if os.path.exists(sam2_path):
     size_mb = os.path.getsize(sam2_path) / (1024 * 1024)
     print(f"  [OK] SAM2.1 Small verified: {sam2_path} ({size_mb:.1f} MB)")
 
 # Clean up any accidental root downloads
-for stray in ["yolov8m.pt", "sam2.1_s.pt"]:
+for stray in ["yolov8m.pt", "sam2.1_s.pt", "FastSAM-s.pt"]:
     root_stray = os.path.join(config.WORKSPACE_ROOT, stray)
     if os.path.exists(root_stray):
         try:

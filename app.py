@@ -194,32 +194,40 @@ class PipelineManager:
             self.status["stage_name"] = "Pipeline Finished Successfully"
 
         # Check for tqdm line: Processing:  50%|..| 45/90 [00:10<00:10, 4.5 frames/s, FPS=4.5, ETA=10s]
-        m_prog = re.search(r"(\d+)%\|.*\|\s*(\d+)/(\d+)", line)
-        if m_prog:
-            pct = int(m_prog.group(1))
-            cur = int(m_prog.group(2))
-            tot = int(m_prog.group(3))
-            self.status["progress_pct"] = pct
-            self.status["current_frame"] = cur
-            self.status["total_frames"] = tot
+        if "Processing" in line or "%|" in line:
+            m_prog = re.search(r"(\d+)%\|.*\|\s*(\d+)/(\d+)", line)
+            if m_prog:
+                pct = int(m_prog.group(1))
+                cur = int(m_prog.group(2))
+                tot = int(m_prog.group(3))
+                # Protect against sub-batch progress bars overriding main frame counts
+                known_total = self.status.get("total_frames", 0)
+                if tot >= max(50, known_total * 0.5):
+                    self.status["progress_pct"] = pct
+                    self.status["current_frame"] = cur
+                    self.status["total_frames"] = tot
 
-        # Extract FPS (from postfix or tqdm speed)
-        m_fps = re.search(r"FPS=([0-9.]+)", line)
-        if m_fps:
-            self.status["fps"] = m_fps.group(1)
-        else:
-            m_rate = re.search(r"([0-9.]+)\s*(?:frames/s|it/s)", line)
-            if m_rate:
-                self.status["fps"] = m_rate.group(1)
+            # Extract FPS (from postfix or tqdm speed)
+            m_fps = re.search(r"FPS=([0-9.]+)", line)
+            if m_fps:
+                self.status["fps"] = m_fps.group(1)
+            else:
+                m_rate = re.search(r"([0-9.]+)\s*(?:frames/s|it/s)", line)
+                if m_rate:
+                    self.status["fps"] = m_rate.group(1)
 
-        # Extract ETA (supports colon formatted 00:03, 01:25)
-        m_eta = re.search(r"ETA=([0-9a-zA-Z\s:]+?)(?:,|$)", line)
-        if m_eta:
-            self.status["eta"] = m_eta.group(1).strip()
-        else:
-            m_tqdm_eta = re.search(r"<([0-9:]+)", line)
-            if m_tqdm_eta:
-                self.status["eta"] = m_tqdm_eta.group(1).strip()
+            # Extract ETA (prioritizing custom ETA postfix, ignoring spurious 0/00:00 flashes)
+            m_eta = re.search(r"ETA=([0-9a-zA-Z\s:]+?)(?:,|$)", line)
+            if m_eta:
+                eta_val = m_eta.group(1).strip()
+                if eta_val and eta_val not in ["0s", "00:00", "0"]:
+                    self.status["eta"] = eta_val
+            else:
+                m_tqdm_eta = re.search(r"<([0-9:]+)", line)
+                if m_tqdm_eta:
+                    eta_val = m_tqdm_eta.group(1).strip()
+                    if eta_val and eta_val not in ["00:00", "0"]:
+                        self.status["eta"] = eta_val
 
         # Extract VRAM
         m_vram = re.search(r"VRAM=([0-9a-zA-Z]+)", line)
@@ -713,67 +721,21 @@ async def startup_event():
 def stream_video(file_path: Path, request: Request):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
-
-    file_size = file_path.stat().st_size
-    range_header = request.headers.get("range")
-
-    if range_header:
-        byte1, byte2 = 0, None
-        match = re.search(r"bytes=(\d+)-(\d*)", range_header)
-        if match:
-            groups = match.groups()
-            byte1 = int(groups[0])
-            if groups[1]:
-                byte2 = int(groups[1])
-
-        if byte2 is None:
-            byte2 = min(byte1 + 1024 * 1024 * 4, file_size - 1) # 4MB chunk
-        else:
-            byte2 = min(byte2, file_size - 1)
-
-        length = byte2 - byte1 + 1
-
-        def iterfile():
-            with open(file_path, "rb") as f:
-                f.seek(byte1)
-                remaining = length
-                chunk_size = 1024 * 256
-                while remaining > 0:
-                    read_len = min(chunk_size, remaining)
-                    data = f.read(read_len)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-
-        headers = {
-            "Content-Range": f"bytes {byte1}-{byte2}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(length),
-            "Content-Type": "video/mp4",
-        }
-        return StreamingResponse(iterfile(), status_code=206, headers=headers)
-    else:
-        def iterfile_full():
-            with open(file_path, "rb") as f:
-                while chunk := f.read(1024 * 512):
-                    yield chunk
-
-        headers = {
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(file_size),
-            "Content-Type": "video/mp4",
-        }
-        return StreamingResponse(iterfile_full(), status_code=200, headers=headers)
+    return FileResponse(str(file_path), media_type="video/mp4")
 
 
 # ---------------- API ROUTES ----------------
 
 def detect_hardware_profile() -> Dict[str, Any]:
     """Auto-detect GPU capability and return optimal processing profile."""
-    import torch
-    cuda_avail = torch.cuda.is_available()
-    if not cuda_avail:
+    try:
+        import torch
+        cuda_avail = torch.cuda.is_available()
+    except (ImportError, Exception):
+        torch = None
+        cuda_avail = False
+
+    if not cuda_avail or torch is None:
         return {
             "profile_key": "mx450",  # Use ultra-light zero-OOM safe profile for CPU
             "name": "CPU Mode",
@@ -786,13 +748,14 @@ def detect_hardware_profile() -> Dict[str, Any]:
             "badge_text": "CPU Mode"
         }
 
+    gpu_name = "NVIDIA GPU"
+    vram_gb = 2.0
     try:
         current_dev = torch.cuda.current_device()
-        gpu_name = torch.cuda.get_device_name(current_dev)
-        vram_gb = round(torch.cuda.get_device_properties(current_dev).total_memory / (1024**3), 2)
+        gpu_name = str(torch.cuda.get_device_name(current_dev))
+        vram_gb = round(float(torch.cuda.get_device_properties(current_dev).total_memory) / (1024**3), 2)
     except Exception:
-        gpu_name = "NVIDIA GPU"
-        vram_gb = 2.0
+        pass
 
     gpu_lower = gpu_name.lower()
 
@@ -806,7 +769,7 @@ def detect_hardware_profile() -> Dict[str, Any]:
             "batch_size": 1,
             "frame_skip": 2,
             "use_sam2": False,
-            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 1, Skip 2, SAM2 Disabled (Zero-OOM Safe)",
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Ultra-Light Mode",
             "badge_text": f"{gpu_name} ({vram_gb}GB)"
         }
     # 4-6GB class: RTX 3050, GTX 1650/1660, RTX 2060, etc.
@@ -816,10 +779,10 @@ def detect_hardware_profile() -> Dict[str, Any]:
             "name": gpu_name,
             "vram_gb": vram_gb,
             "cuda_available": True,
-            "batch_size": 6,
-            "frame_skip": 1,
-            "use_sam2": True,
-            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 6, Skip 1, SAM2 Enabled",
+            "batch_size": 8,
+            "frame_skip": 2,
+            "use_sam2": False,
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): High-Performance Studio Mode (15-min runs)",
             "badge_text": f"{gpu_name} ({vram_gb}GB)"
         }
     # 8GB+ class: RTX 4060, RTX 3070/3080/4070/4080/4090, A100, etc.
@@ -831,8 +794,8 @@ def detect_hardware_profile() -> Dict[str, Any]:
             "cuda_available": True,
             "batch_size": 16,
             "frame_skip": 1,
-            "use_sam2": True,
-            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Batch 16, Skip 1, Full SAM2",
+            "use_sam2": False,
+            "description": f"Auto-Configured for {gpu_name} ({vram_gb}GB VRAM): Maximum Throughput Mode",
             "badge_text": f"{gpu_name} ({vram_gb}GB)"
         }
 
@@ -1028,10 +991,17 @@ async def get_results(video_name: str, background_tasks: BackgroundTasks):
 
     return results
 
-@app.get("/api/video/raw/{filename}")
+@app.api_route("/api/video/raw/{filename}", methods=["GET", "HEAD"])
 async def get_raw_video(filename: str, request: Request):
     # Search in data dirs
-    for search_dir in [DATA_DIR, DATA_DIR / "videos", DATA_DIR / "videos" / "basketball", DATA_DIR / "videos" / "cricket"]:
+    for search_dir in [
+        DATA_DIR,
+        DATA_DIR / "videos",
+        DATA_DIR / "basketball",
+        DATA_DIR / "cricket",
+        DATA_DIR / "videos" / "basketball",
+        DATA_DIR / "videos" / "cricket"
+    ]:
         path = search_dir / filename
         if path.exists():
             return stream_video(path, request)
@@ -1041,7 +1011,7 @@ async def get_raw_video(filename: str, request: Request):
 async def get_available_sports():
     return {"sports": ["basketball", "cricket"]}
 
-@app.get("/api/video/output/{filename}")
+@app.api_route("/api/video/output/{filename}", methods=["GET", "HEAD"])
 async def get_output_video(filename: str, request: Request):
     # Search sport-specific output dirs, then fallback
     for out_dir in [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR, OUTPUT_DIR]:
@@ -1057,7 +1027,7 @@ async def get_output_video(filename: str, request: Request):
                 return stream_video(raw_cand, request)
     raise HTTPException(status_code=404, detail="Output video not found")
 
-@app.get("/api/video/output/{sport}/{filename}")
+@app.api_route("/api/video/output/{sport}/{filename}", methods=["GET", "HEAD"])
 async def get_sport_output_video(sport: str, filename: str, request: Request):
     if sport == "basketball":
         search_dirs = [BASKETBALL_OUTPUT_DIR, OUTPUT_DIR]

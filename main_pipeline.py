@@ -34,8 +34,11 @@ def main():
     parser.add_argument("--frame-skip", type=int, default=None, help="Process every Nth frame (overrides config)")
     parser.add_argument("--batch-size", type=int, default=None, help="Frames per batch (overrides config)")
     parser.add_argument("--no-sam2", action="store_true", help="Disable SAM2 instance segmentation to conserve VRAM (recommended for <=4GB GPUs like MX450)")
+    parser.add_argument("--ocr", action="store_true", help="Enable EasyOCR jersey number detection (disabled by default for speed)")
     parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
     args = parser.parse_args()
+
+    config.USE_OCR = bool(args.ocr)
 
     if not os.path.exists(args.video_path):
         raise FileNotFoundError(f"Input video not found: {args.video_path}")
@@ -64,17 +67,17 @@ def main():
             print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Zero-OOM settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")
         elif vram_gb <= 6.5 or any(k in gpu_lower for k in ["3050", "1650", "1660", "2060"]):
             if batch_size is None:
-                batch_size = 6
+                batch_size = 16
             if frame_skip is None:
-                frame_skip = 1
+                frame_skip = getattr(config, 'FRAME_SKIP', 2)
             if args.no_sam2:
                 config.USE_SAM2 = False
-            print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Balanced settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")
+            print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Balanced settings: Batch={batch_size}, Skip={frame_skip}, SegEngine={config.SEGMENTATION_MODEL.upper() if config.USE_SAM2 else 'Disabled'}")
         else:
             if batch_size is None:
                 batch_size = 16
             if frame_skip is None:
-                frame_skip = 1
+                frame_skip = getattr(config, 'FRAME_SKIP', 2)
             if args.no_sam2:
                 config.USE_SAM2 = False
             print(f"[Hardware Auto-Tuning] Detected {gpu_name} ({vram_gb:.1f}GB VRAM). Applied Max Performance settings: Batch={batch_size}, Skip={frame_skip}, SAM2={config.USE_SAM2}")

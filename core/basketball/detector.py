@@ -88,21 +88,14 @@ class CourtVisionDetector:
             player_tracks: List of dicts per frame. {player_id: {'bbox': [x1,y1,x2,y2]}}
             ball_tracks: List of dicts per frame. {1: {'bbox': [x1,y1,x2,y2]}} or {}
         """
-        if "cuda" in config.DEVICE:
-            torch.cuda.empty_cache()
-        
         with torch.no_grad():
-            import tqdm
-            
             player_tracks = []
-            raw_ball_tracks = []
             
-            for frame in tqdm.tqdm(frames, desc="YOLO Tracking", leave=False):
-                frame_h, frame_w = frame.shape[:2]
-                
-                # ===== PLAYER MODEL =====
-                p_frame_tracks = {}
-                if getattr(config, 'USE_RF_DETR', False):
+            # ===== PLAYER MODEL (YOLO11s) =====
+            if getattr(config, 'USE_RF_DETR', False):
+                for frame in frames:
+                    frame_h, frame_w = frame.shape[:2]
+                    p_frame_tracks = {}
                     # RF-DETR native inference
                     detections = self.player_model.predict(frame, threshold=config.PLAYER_CONFIDENCE)
                     # Filter to only persons (for RF-DETR, COCO class_id 1 is usually person)
@@ -119,19 +112,25 @@ class CourtVisionDetector:
                                 if box[3] < frame_h * 0.25:
                                     continue
                                 p_frame_tracks[int(t_id)] = {'bbox': box.tolist()}
-                else:
-                    # Uses native BoT-SORT tracking with persist=True for stable IDs
-                    player_res = self.player_model.track(
-                        frame,
-                        verbose=False,
-                        classes=[0],  # COCO class 0 = person
-                        conf=config.PLAYER_CONFIDENCE,
-                        iou=0.45,
-                        imgsz=640,  # Native resolution for COCO model
-                        persist=True,
-                        tracker=self.tracker_yaml
-                    )[0]
-                    
+                    player_tracks.append(p_frame_tracks)
+            else:
+                # Vectorized batched BoT-SORT tracking with persist=True for stable IDs
+                player_results = self.player_model.track(
+                    frames,
+                    batch=len(frames),
+                    verbose=False,
+                    classes=[0],  # COCO class 0 = person
+                    conf=config.PLAYER_CONFIDENCE,
+                    iou=0.45,
+                    imgsz=640,  # Native resolution for COCO model
+                    persist=True,
+                    tracker=self.tracker_yaml,
+                    quantize='fp16' if getattr(config, 'USE_FP16', False) else None
+                )
+                
+                for frame, player_res in zip(frames, player_results):
+                    frame_h = frame.shape[0]
+                    p_frame_tracks = {}
                     if player_res.boxes is not None and player_res.boxes.id is not None:
                         cls = player_res.boxes.cls.cpu().numpy()
                         ids = player_res.boxes.id.cpu().numpy()
@@ -140,27 +139,32 @@ class CourtVisionDetector:
                         
                         for c, i, box, cf in zip(cls, ids, xyxy, conf):
                             x1, y1, x2, y2 = box
-                            
                             # Crowd filter: skip detections in top 25% of frame
                             if y2 < frame_h * 0.25:
                                 continue
-                            
                             p_frame_tracks[int(i)] = {'bbox': box.tolist()}
-                
-                player_tracks.append(p_frame_tracks)
-                
-                # ===== BALL MODEL (basketball_best.pt) =====
-                # Uses predict (not track) since we only need the single best ball detection
-                ball_res = self.ball_model.predict(
-                    frame,
-                    verbose=False,
-                    classes=[0, 2],  # 0=ball, 2=referee
-                    conf=config.BALL_CONFIDENCE,
-                    iou=0.45,
-                    imgsz=1280,  # High resolution for detecting small ball
-                )[0]
-                
+                    
+                    player_tracks.append(p_frame_tracks)
+            
+            # ===== BALL MODEL (basketball_best.pt) =====
+            # Vectorized single-pass batched prediction across all frames in batch with FP16
+            ball_imgsz = getattr(config, 'BALL_MODEL_IMGSZ', 800)
+            ball_results = self.ball_model.predict(
+                frames,
+                batch=len(frames),
+                verbose=False,
+                classes=[0, 2],  # 0=ball, 2=referee
+                conf=config.BALL_CONFIDENCE,
+                iou=0.45,
+                imgsz=ball_imgsz,
+                quantize='fp16' if getattr(config, 'USE_FP16', False) else None
+            )
+            
+            raw_ball_tracks = []
+            for idx, ball_res in enumerate(ball_results):
                 b_frame_tracks = {}
+                p_frame_tracks = player_tracks[idx]
+                frame_w = frames[idx].shape[1]
                 
                 if ball_res.boxes is not None and len(ball_res.boxes) > 0:
                     b_cls = ball_res.boxes.cls.cpu().numpy()
@@ -254,8 +258,4 @@ class CourtVisionDetector:
                         
             final_ball_tracks.append(cleaned_tracks)
         
-        # Free VRAM
-        if "cuda" in config.DEVICE:
-            torch.cuda.empty_cache()
-            
         return player_tracks, final_ball_tracks

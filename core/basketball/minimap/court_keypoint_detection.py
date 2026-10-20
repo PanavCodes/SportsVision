@@ -1,3 +1,4 @@
+import config
 from ultralytics import YOLO
 import sys
 from .stubs_utils import read_stub, save_stub
@@ -24,7 +25,12 @@ class CourtKeypointDetector:
         court_keypoints = []
         
         for i in range(0, len(frames), batch_size):
-            detections_batch = self.model.predict(frames[i:i+batch_size], conf=self.conf_threshold)
+            detections_batch = self.model.predict(
+                frames[i:i+batch_size],
+                conf=self.conf_threshold,
+                verbose=False,
+                quantize='fp16' if getattr(config, 'USE_FP16', False) else None
+            )
 
             for frame_idx, detection in enumerate(detections_batch, start=i):
                 kps = detection.keypoints

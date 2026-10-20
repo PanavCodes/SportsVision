@@ -46,14 +46,11 @@ class CricketDetector:
         if ball_model_path is None:
             cbd_path = os.path.join(config.WORKSPACE_ROOT, "models", "cricket", "CBDbest.pt")
             default_path = config.CRICKET_BALL_MODEL_PATH
-            alt_path = config.CRICKET_YOLO_MODEL_PATH
 
             if os.path.exists(cbd_path):
                 ball_model_path = cbd_path
             elif os.path.exists(default_path):
                 ball_model_path = default_path
-            elif os.path.exists(alt_path):
-                ball_model_path = alt_path
             else:
                 ball_model_path = "yolov8m.pt"
 
@@ -112,21 +109,41 @@ class CricketDetector:
             ball_tracks: list of dicts {1: {'bbox': [x1, y1, x2, y2], 'centroid': (x, y), 'conf': float}} or empty
             stumps_info: list of detected pitch end zones or stumps bboxes
         """
+        if not video_frames:
+            return [], [], []
+
+        # 1. Prepare enhanced frames for ball detection (CLAHE)
+        enhanced_frames = [self.enhance_lighting(f) for f in video_frames]
+
+        # 2. Vectorized Batched GPU Ball Detection across all frames simultaneously
+        all_ball_results = self.ball_model(
+            enhanced_frames,
+            batch=len(enhanced_frames),
+            conf=max(0.12, self.ball_confidence - 0.05),
+            verbose=False,
+            device=config.DEVICE,
+            quantize='fp16' if getattr(config, 'USE_FP16', False) else None
+        )
+
+        # 3. Vectorized Batched GPU Player Detection across all frames simultaneously
+        all_player_results = self.player_model(
+            video_frames,
+            batch=len(video_frames),
+            classes=[0],  # Person class in COCO
+            conf=self.player_confidence,
+            verbose=False,
+            device=config.DEVICE,
+            quantize='fp16' if getattr(config, 'USE_FP16', False) else None
+        )
+
         player_tracks = []
         ball_tracks = []
         stumps_info = []
 
-        for frame in video_frames:
-            # --- A. Ball Detection with CLAHE & Streak Heuristics ---
+        # 4. Chronological State Unpacking (Kinematic Tracking & ByteTrack)
+        for idx, frame in enumerate(video_frames):
             ball_track_frame = {}
-            enhanced_frame = self.enhance_lighting(frame)
-
-            ball_results = self.ball_model(
-                enhanced_frame,
-                conf=max(0.12, self.ball_confidence - 0.05),
-                verbose=False,
-                device=config.DEVICE
-            )[0]
+            ball_results = all_ball_results[idx]
 
             best_ball_box = None
             best_ball_conf = 0.0
@@ -183,15 +200,9 @@ class CricketDetector:
 
             ball_tracks.append(ball_track_frame)
 
-            # --- B. Player Detection & ByteTrack ---
+            # --- Update ByteTrack in Chronological Order ---
             player_track_frame = {}
-            player_results = self.player_model(
-                frame,
-                classes=[0],  # Person class in COCO
-                conf=self.player_confidence,
-                verbose=False,
-                device=config.DEVICE
-            )[0]
+            player_results = all_player_results[idx]
 
             if player_results.boxes is not None and len(player_results.boxes) > 0:
                 detections = sv.Detections.from_ultralytics(player_results)
@@ -211,7 +222,7 @@ class CricketDetector:
 
             player_tracks.append(player_track_frame)
 
-            # --- C. Stumps & Batsman Pad Localization with Edge Calibration ---
+            # --- Stumps & Batsman Pad Localization ---
             stumps_frame = self._detect_stumps_calibrated(frame, player_track_frame)
             stumps_info.append(stumps_frame)
 

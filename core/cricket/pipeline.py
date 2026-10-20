@@ -10,7 +10,7 @@ from typing import Optional, List, Tuple, Dict
 
 import config
 from core.shared.gpu_diagnostics import verify_cuda
-from core.shared.video_io import format_time
+from core.shared.video_io import VideoWriterThread, format_time
 
 from core.cricket.detector import CricketDetector
 from core.cricket.ball_tracker import CricketBallTracker
@@ -249,7 +249,8 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
 
     out_res = getattr(config, 'OUTPUT_RESOLUTION', (1280, 720))
     fourcc = cv2.VideoWriter_fourcc(*getattr(config, 'OUTPUT_CODEC', 'mp4v'))
-    out_video = cv2.VideoWriter(out_video_path, fourcc, fps, out_res)
+    out_video = VideoWriterThread(cv2.VideoWriter(out_video_path, fourcc, fps, out_res))
+    out_video.start()
 
     print(f"  Video: {os.path.basename(video_path)}")
     print(f"  Resolution: {width}x{height} -> {out_res[0]}x{out_res[1]} @ {fps} FPS")
@@ -287,7 +288,7 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
                 frame_count += 1
                 continue
 
-            frame = cv2.resize(frame, out_res, interpolation=cv2.INTER_CUBIC)
+            frame = cv2.resize(frame, out_res, interpolation=cv2.INTER_LINEAR)
             video_frames.append(frame)
             frame_count += 1
 
@@ -446,16 +447,12 @@ def run_cricket_pipeline(video_path: str, max_frames=None, frame_skip=None, batc
                 curr_delivery_player_tracks.clear()
                 curr_delivery_stumps_info.clear()
 
-        # Free PyTorch CUDA cache between streaming batches for extended 30+ min endurance
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
         elapsed = time.time() - pipeline_start
         fps_avg = frame_count / elapsed if elapsed > 0 else 0
         remaining_frames = max(0, total_frames - frame_count)
         eta_sec = remaining_frames / fps_avg if fps_avg > 0 else 0
 
-        pbar.update(len(video_frames))
+        pbar.update(max(0, frame_count - pbar.n))
         pbar.set_postfix({
             'FPS': f'{fps_avg:.1f}',
             'ETA': format_time(eta_sec),

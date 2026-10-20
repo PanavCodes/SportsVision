@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import time
 import json
@@ -134,7 +134,7 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
                 frame_count += 1
                 continue
 
-            frame = cv2.resize(frame, config.OUTPUT_RESOLUTION, interpolation=cv2.INTER_CUBIC)
+            frame = cv2.resize(frame, config.OUTPUT_RESOLUTION, interpolation=cv2.INTER_LINEAR)
             video_frames.append(frame)
             frame_count += 1
 
@@ -237,7 +237,7 @@ def run_basketball_pipeline(video_path: str, max_frames=None, frame_skip=None, b
         remaining_frames = total_frames - frame_count
         eta = remaining_frames / fps_avg if fps_avg > 0 else 0
 
-        pbar.update(len(video_frames))
+        pbar.update(max(0, frames_done - pbar.n))
         pbar.set_postfix({
             'FPS': f'{fps_avg:.1f}',
             'ETA': format_time(eta),

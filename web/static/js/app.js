@@ -241,30 +241,30 @@ function initHardwareProfiles() {
       frameSkip: '2',
       useSam2: false,
       badgeText: 'MX450 (2GB VRAM)',
-      batchHint: 'MX450: Batch 1 (Zero-OOM)',
-      skipHint: 'Skip 2 (Reduces VRAM & thermals)',
+      batchHint: 'Ultra-Lightweight Mode (Zero-OOM)',
+      skipHint: 'Frame Skip 2 (Reduces VRAM & thermals)',
       sam2Text: 'Disabled for 2GB VRAM (Avoids CUDA OOM)',
-      toast: '💻 Applied MX450 2GB profile: Batch 1, Skip 2, SAM2 Disabled (Zero-OOM Safe)'
+      toast: '💻 Applied MX450 / CPU Profile: Ultra-Light Mode'
     },
     rtx3050: {
-      batchSize: '6',
-      frameSkip: '1',
-      useSam2: true,
+      batchSize: '16',
+      frameSkip: '2',
+      useSam2: false,
       badgeText: 'RTX 3050 (6GB VRAM)',
-      batchHint: 'RTX 3050: Batch 6',
-      skipHint: '1 = Full frame processing',
-      sam2Text: 'Player masks enabled (Optimized for 6GB VRAM)',
-      toast: '🚀 Applied RTX 3050 6GB profile: Batch 6, Skip 1, SAM2 Enabled'
+      batchHint: 'RTX 3050: High-Performance Mode (Batch 16)',
+      skipHint: 'Frame Skip 2 (Balanced 15 FPS Sampling for fast runs)',
+      sam2Text: 'Disabled for max throughput (Toggle in Drawer if masks needed)',
+      toast: '🚀 Applied RTX 3050 Profile: High-Performance Mode (Skip 2)'
     },
     rtx4060: {
       batchSize: '16',
-      frameSkip: '1',
-      useSam2: true,
+      frameSkip: '2',
+      useSam2: false,
       badgeText: 'RTX 4060 (8GB+ VRAM)',
-      batchHint: 'RTX 4060 8GB+: Batch 16',
-      skipHint: '1 = Full frame processing',
-      sam2Text: 'Full SAM2 segmentation + ByteTrack',
-      toast: '🔥 Applied RTX 4060 profile: Batch 16, Skip 1, SAM2 Enabled'
+      batchHint: 'RTX 4060: Maximum Throughput Mode (Batch 16)',
+      skipHint: 'Frame Skip 2 (Balanced 15 FPS Sampling for fast runs)',
+      sam2Text: 'Disabled for max throughput (Toggle in Drawer if masks needed)',
+      toast: '🔥 Applied RTX 4060 Profile: Maximum Throughput Mode (Skip 2)'
     }
   };
 
@@ -565,6 +565,8 @@ function onVideoSelectionChange() {
     if (elements.btnLoadSaved) elements.btnLoadSaved.style.display = 'inline-flex';
     elements.btnRunPipeline.innerHTML = '<span>🔄</span> Re-run Analytics Pipeline';
     setTabBadgesVisible(true);
+    // Automatically load annotated video and results into video theater
+    fetchAndDisplayResults(currentVideoStem);
   } else {
     if (elements.hasSavedBadge) elements.hasSavedBadge.style.display = 'none';
     if (elements.selectedVideoBadge) elements.selectedVideoBadge.style.display = 'none';
@@ -756,8 +758,8 @@ function startLogStreaming() {
           try { eventSource.close(); } catch(e) {}
           eventSource = null;
         }
-        loadVideos();
-        fetchAndDisplayResults(data.video_name);
+        await loadVideos();
+        await fetchAndDisplayResults(data.video_name);
         showToast('success', 'Analysis complete! Switching to Video Theater.');
         switchTab('theater-pane');
       } else if (data.type === 'error' || data.type === 'aborted') {
@@ -1293,10 +1295,14 @@ function initVideoSync() {
   const vRaw = elements.rawVideoPlayer;
   const vAnn = elements.annotatedVideoPlayer;
 
+  // Keep AI video muted to comply with browser autoplay policies & prevent audio contention
+  vAnn.muted = true;
+
+  // Master Synchronized Play / Pause Button
   elements.btnPlayPauseSync.addEventListener('click', () => {
-    if (vAnn.paused) {
-      vAnn.play().catch(e => console.log(e));
-      vRaw.play().catch(e => console.log(e));
+    if (vRaw.paused || vAnn.paused) {
+      if (vAnn.src) vAnn.play().catch(e => console.log('vAnn play:', e));
+      if (vRaw.src) vRaw.play().catch(e => console.log('vRaw play:', e));
       elements.syncPlayIcon.textContent = '⏸ Pause Synchronized';
     } else {
       vAnn.pause();
@@ -1305,9 +1311,38 @@ function initVideoSync() {
     }
   });
 
+  // Bidirectional Native Controls Synchronization (Play / Pause)
+  vRaw.addEventListener('play', () => {
+    if (vAnn.paused && vAnn.src) {
+      vAnn.play().catch(e => console.log('vAnn sync play:', e));
+    }
+    if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '⏸ Pause Synchronized';
+  });
+
+  vRaw.addEventListener('pause', () => {
+    if (!vAnn.paused) {
+      vAnn.pause();
+    }
+    if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '▶ Play Synchronized';
+  });
+
+  vAnn.addEventListener('play', () => {
+    if (vRaw.paused && vRaw.src) {
+      vRaw.play().catch(e => console.log('vRaw sync play:', e));
+    }
+    if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '⏸ Pause Synchronized';
+  });
+
+  vAnn.addEventListener('pause', () => {
+    if (!vRaw.paused) {
+      vRaw.pause();
+    }
+    if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '▶ Play Synchronized';
+  });
+
   if (elements.btnSyncRewind) {
     elements.btnSyncRewind.addEventListener('click', () => {
-      const targetTime = Math.max(0, (vAnn.currentTime || 0) - 5);
+      const targetTime = Math.max(0, (vRaw.currentTime || vAnn.currentTime || 0) - 5);
       vAnn.currentTime = targetTime;
       vRaw.currentTime = targetTime;
     });
@@ -1315,40 +1350,52 @@ function initVideoSync() {
 
   if (elements.btnSyncForward) {
     elements.btnSyncForward.addEventListener('click', () => {
-      const targetTime = Math.min(vAnn.duration || 9999, (vAnn.currentTime || 0) + 5);
+      const targetTime = (vRaw.currentTime || vAnn.currentTime || 0) + 5;
       vAnn.currentTime = targetTime;
       vRaw.currentTime = targetTime;
     });
   }
 
-  vAnn.addEventListener('seeking', () => {
-    if (!isSyncingVideos) {
-      isSyncingVideos = true;
-      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
-        vRaw.currentTime = (vAnn.currentTime / vAnn.duration) * vRaw.duration;
-      } else {
-        vRaw.currentTime = vAnn.currentTime;
-      }
-      setTimeout(() => { isSyncingVideos = false; }, 50);
-    }
-  });
-
+  // Seeking Sync (Left player seeks -> Right player mirrors)
   vRaw.addEventListener('seeking', () => {
-    if (!isSyncingVideos) {
+    if (!isSyncingVideos && vAnn.src) {
       isSyncingVideos = true;
       if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
         vAnn.currentTime = (vRaw.currentTime / vRaw.duration) * vAnn.duration;
       } else {
         vAnn.currentTime = vRaw.currentTime;
       }
-      setTimeout(() => { isSyncingVideos = false; }, 50);
+      setTimeout(() => { isSyncingVideos = false; }, 80);
+    }
+  });
+
+  // Seeking Sync (Right player seeks -> Left player mirrors)
+  vAnn.addEventListener('seeking', () => {
+    if (!isSyncingVideos && vRaw.src) {
+      isSyncingVideos = true;
+      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
+        vRaw.currentTime = (vAnn.currentTime / vAnn.duration) * vRaw.duration;
+      } else {
+        vRaw.currentTime = vAnn.currentTime;
+      }
+      setTimeout(() => { isSyncingVideos = false; }, 80);
+    }
+  });
+
+  // Prevent drift during active synchronized playback
+  vRaw.addEventListener('timeupdate', () => {
+    if (!isSyncingVideos && !vRaw.paused && !vAnn.paused && vAnn.duration && vRaw.duration) {
+      const drift = Math.abs(vRaw.currentTime - vAnn.currentTime);
+      if (drift > 0.5) {
+        vAnn.currentTime = vRaw.currentTime;
+      }
     }
   });
 
   vAnn.addEventListener('timeupdate', () => {
-    const cur = formatVideoTime(vAnn.currentTime);
-    const dur = formatVideoTime(vAnn.duration || 0);
-    elements.syncTimeDisplay.textContent = `${cur} / ${dur}`;
+    const cur = formatVideoTime(vAnn.currentTime || vRaw.currentTime || 0);
+    const dur = formatVideoTime(vAnn.duration || vRaw.duration || 0);
+    elements.syncTimeDisplay.textContent = ${cur} / ;
   });
 
   elements.playbackSpeedSelect.addEventListener('change', (e) => {

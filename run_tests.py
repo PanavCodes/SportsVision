@@ -32,7 +32,7 @@ def main():
     if not result.wasSuccessful():
         sys.exit(1)
     else:
-        print("[✓] All CourtVision test suites passed successfully!")
+        print("[OK] All CourtVision test suites passed successfully!")
         sys.exit(0)
 
 if __name__ == "__main__":

@@ -20,22 +20,29 @@ os.makedirs(os.path.join(VIDEOS_DIR, "cricket"), exist_ok=True)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 USE_FP16 = True if torch.cuda.is_available() else False
 
+# Ampere (RTX 3050+) Architecture Hardware Acceleration
+if torch.cuda.is_available():
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
+
 # ==========================================
 # Shared Models & Global Performance Tuning
 # ==========================================
 SHARED_MODELS_DIR = os.path.join(WORKSPACE_ROOT, "models", "shared")
 os.makedirs(SHARED_MODELS_DIR, exist_ok=True)
 
-# Common human detector (COCO person class)
-PLAYER_MODEL_PATH = os.path.join(SHARED_MODELS_DIR, "yolov8m.pt")
+# Common human detector (COCO person class - YOLO11s for ultra-fast Ampere/RTX inference)
+PLAYER_MODEL_PATH = os.path.join(SHARED_MODELS_DIR, "yolo11s.pt")
 if not os.path.exists(PLAYER_MODEL_PATH):
-    # Fallback to repo root or models directory if present
-    alt_player = os.path.join(WORKSPACE_ROOT, "models", "yolov8m.pt")
+    alt_player = os.path.join(SHARED_MODELS_DIR, "yolov8m.pt")
     if os.path.exists(alt_player):
         PLAYER_MODEL_PATH = alt_player
 
-# SAM2 segmentation
-USE_SAM2 = True
+# Player Segmentation (FastSAM for real-time edge performance, SAM2 for max quality)
+USE_SAM2 = False  # Disabled by default for high performance; enable if pixel masks are needed
+SEGMENTATION_MODEL = "fastsam"  # Options: 'fastsam' (real-time edge) or 'sam2'
+FASTSAM_MODEL_PATH = os.path.join(SHARED_MODELS_DIR, "FastSAM-s.pt")
 SAM_MODEL_PATH = os.path.join(SHARED_MODELS_DIR, "sam2.1_s.pt")
 if not os.path.exists(SAM_MODEL_PATH):
     alt_sam = os.path.join(WORKSPACE_ROOT, "sam2.1_s.pt")
@@ -44,12 +51,12 @@ if not os.path.exists(SAM_MODEL_PATH):
 
 # Feature Toggles
 USE_SIGLIP = False
-USE_OCR = True
+USE_OCR = False  # Disabled by default to eliminate heavy per-crop latency stalls
 USE_RF_DETR = False  # Set to True if rf-detr is installed in environment
 
-# Performance Tuning (Tuned for RTX 4060 8GB VRAM)
+# Performance Tuning
 BATCH_SIZE = 250                 # Frames per batch
-FRAME_SKIP = 1                   # Process every Nth frame
+FRAME_SKIP = 2                   # Process every Nth frame (Balanced 15 FPS sampling for fast processing)
 OUTPUT_CODEC = "mp4v"            # Video codec
 USE_ONNX = False                 # Export YOLO to .engine for TensorRT
 OUTPUT_RESOLUTION = (1280, 720)  # Standard 720p output
@@ -69,11 +76,11 @@ BASKETBALL_COURT_IMAGE_PATH = os.path.join(BASKETBALL_DATA_DIR, "basketball_cour
 PLAYER_CONFIDENCE = 0.25
 BALL_CONFIDENCE = 0.15
 TRACKER_CONFIDENCE = 0.5
+BALL_MODEL_IMGSZ = 800  # High-efficiency 800x800 resolution (3x faster than 1280 on RTX 3050)
 
 TEAM_1_COLOR = (255, 0, 0)
 TEAM_2_COLOR = (0, 255, 0)
-COURT_KEYPOINT_STRIDE = 5
-YOLO_GENERAL_MODEL = os.path.join(SHARED_MODELS_DIR, "yolov8l.pt")
+COURT_KEYPOINT_STRIDE = 10  # Evaluate court keypoints every 10 frames (Optical Flow CMC bridges in between)
 HIGHLIGHT_CLIP_BEFORE_SEC = 4
 HIGHLIGHT_CLIP_AFTER_SEC = 2
 
@@ -93,7 +100,6 @@ CRICKET_STATS_DIR = os.path.join(CRICKET_OUTPUT_DIR, "stats")
 os.makedirs(CRICKET_STATS_DIR, exist_ok=True)
 
 CRICKET_BALL_MODEL_PATH = os.path.join(CRICKET_MODELS_DIR, "cricket_ball_best.pt")
-CRICKET_YOLO_MODEL_PATH = os.path.join(CRICKET_MODELS_DIR, "cricket_yolov8_best.pt")
 CRICKET_PITCH_IMAGE_PATH = os.path.join(CRICKET_DATA_DIR, "cricket_pitch.png")
 CRICKET_GROUND_IMAGE_PATH = os.path.join(CRICKET_DATA_DIR, "cricket_ground.png")
 

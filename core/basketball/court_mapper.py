@@ -64,10 +64,6 @@ class CourtVisionMapper:
                 kf_idx += 1
             all_keypoints.append(keyframe_keypoints[min(kf_idx, len(keyframe_keypoints) - 1)])
         
-        # Free VRAM after keypoint detection
-        if "cuda" in config.DEVICE:
-            torch.cuda.empty_cache()
-            
         return all_keypoints
 
     def transform_tracks(self, video_frames: list, player_tracks: list, ball_tracks: list):
