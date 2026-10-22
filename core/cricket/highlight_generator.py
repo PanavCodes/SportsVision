@@ -78,6 +78,7 @@ class CricketHighlightGenerator:
 
         video = None
         final_clip = None
+        clips = []
         try:
             from moviepy import VideoFileClip, concatenate_videoclips
             video = VideoFileClip(video_path)
@@ -111,6 +112,11 @@ class CricketHighlightGenerator:
             if final_clip is not None:
                 try:
                     final_clip.close()
+                except Exception:
+                    pass
+            for c in clips:
+                try:
+                    c.close()
                 except Exception:
                     pass
             if video is not None:
