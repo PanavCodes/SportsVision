@@ -52,6 +52,8 @@ class PipelineManager:
         self.listeners: List[asyncio.Queue] = []
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.detected_sport = "unknown"
+        self._transcoding_set = set()
+        self._transcoding_lock = threading.Lock()
         self.status = {
             "is_running": False,
             "stage": 0,
@@ -324,31 +326,40 @@ class PipelineManager:
 
     def _ensure_web_video(self, video_name: str):
         """Transcode OpenCV mp4v video to H.264 web compatible video if not already converted."""
-        # Check both basketball and cricket output dirs
-        for out_dir in [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR]:
-            raw_out = out_dir / f"{video_name}_annotated.mp4"
-            web_out = out_dir / f"{video_name}_annotated_web.mp4"
+        with self._transcoding_lock:
+            if video_name in self._transcoding_set:
+                return
+            self._transcoding_set.add(video_name)
 
-            if raw_out.exists() and FFMPEG_EXE:
-                if not web_out.exists() or (web_out.stat().st_mtime < raw_out.stat().st_mtime):
-                    try:
-                        self.append_log(f"[Web Transcoder] Optimizing video for browser playback (H.264)...")
-                        subprocess.run(
-                            [
-                                FFMPEG_EXE, "-y",
-                                "-i", str(raw_out),
-                                "-c:v", "libx264",
-                                "-preset", "veryfast",
-                                "-pix_fmt", "yuv420p",
-                                "-movflags", "+faststart",
-                                str(web_out)
-                            ],
-                            capture_output=True,
-                            check=True
-                        )
-                        self.append_log(f"[Web Transcoder] Web playback optimization complete: {web_out.name}")
-                    except Exception as e:
-                        self.append_log(f"[Web Transcoder Warning] {e}")
+        try:
+            # Check both basketball and cricket output dirs
+            for out_dir in [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR]:
+                raw_out = out_dir / f"{video_name}_annotated.mp4"
+                web_out = out_dir / f"{video_name}_annotated_web.mp4"
+
+                if raw_out.exists() and FFMPEG_EXE:
+                    if not web_out.exists() or (web_out.stat().st_mtime < raw_out.stat().st_mtime):
+                        try:
+                            self.append_log(f"[Web Transcoder] Optimizing video for browser playback (H.264)...")
+                            subprocess.run(
+                                [
+                                    FFMPEG_EXE, "-y",
+                                    "-i", str(raw_out),
+                                    "-c:v", "libx264",
+                                    "-preset", "veryfast",
+                                    "-pix_fmt", "yuv420p",
+                                    "-movflags", "+faststart",
+                                    str(web_out)
+                                ],
+                                capture_output=True,
+                                check=True
+                            )
+                            self.append_log(f"[Web Transcoder] Web playback optimization complete: {web_out.name}")
+                        except Exception as e:
+                            self.append_log(f"[Web Transcoder Warning] {e}")
+        finally:
+            with self._transcoding_lock:
+                self._transcoding_set.discard(video_name)
 
     def stop_pipeline(self):
         if self.process and self.is_running:
@@ -1012,23 +1023,39 @@ async def get_available_sports():
     return {"sports": ["basketball", "cricket"]}
 
 @app.api_route("/api/video/output/{filename}", methods=["GET", "HEAD"])
-async def get_output_video(filename: str, request: Request):
+async def get_output_video(filename: str, request: Request, background_tasks: BackgroundTasks):
+    search_dirs = [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR, OUTPUT_DIR]
+
+    # For browser playback: Always prefer web-optimized H.264 video when available
+    if "_annotated.mp4" in filename and "_annotated_web.mp4" not in filename:
+        web_name = filename.replace("_annotated.mp4", "_annotated_web.mp4")
+        for out_dir in search_dirs:
+            web_cand = out_dir / web_name
+            if web_cand.exists() and web_cand.stat().st_size > 0:
+                return stream_video(web_cand, request)
+        # Web version not yet ready: schedule background transcode
+        base_stem = filename.replace("_annotated.mp4", "")
+        background_tasks.add_task(pipeline_mgr._ensure_web_video, base_stem)
+
     # Search sport-specific output dirs, then fallback
-    for out_dir in [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR, OUTPUT_DIR]:
+    for out_dir in search_dirs:
         path = out_dir / filename
         if path.exists():
             return stream_video(path, request)
+
     # Check if requested web version but only raw exists
     if "_annotated_web.mp4" in filename:
         raw_name = filename.replace("_annotated_web.mp4", "_annotated.mp4")
-        for out_dir in [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR, OUTPUT_DIR]:
+        for out_dir in search_dirs:
             raw_cand = out_dir / raw_name
             if raw_cand.exists():
+                base_stem = filename.replace("_annotated_web.mp4", "")
+                background_tasks.add_task(pipeline_mgr._ensure_web_video, base_stem)
                 return stream_video(raw_cand, request)
     raise HTTPException(status_code=404, detail="Output video not found")
 
 @app.api_route("/api/video/output/{sport}/{filename}", methods=["GET", "HEAD"])
-async def get_sport_output_video(sport: str, filename: str, request: Request):
+async def get_sport_output_video(sport: str, filename: str, request: Request, background_tasks: BackgroundTasks):
     if sport == "basketball":
         search_dirs = [BASKETBALL_OUTPUT_DIR, OUTPUT_DIR]
     elif sport == "cricket":
@@ -1036,15 +1063,28 @@ async def get_sport_output_video(sport: str, filename: str, request: Request):
     else:
         search_dirs = [BASKETBALL_OUTPUT_DIR, CRICKET_OUTPUT_DIR, OUTPUT_DIR]
 
+    # For browser playback: Always prefer web-optimized H.264 video when available
+    if "_annotated.mp4" in filename and "_annotated_web.mp4" not in filename:
+        web_name = filename.replace("_annotated.mp4", "_annotated_web.mp4")
+        for out_dir in search_dirs:
+            web_cand = out_dir / web_name
+            if web_cand.exists() and web_cand.stat().st_size > 0:
+                return stream_video(web_cand, request)
+        base_stem = filename.replace("_annotated.mp4", "")
+        background_tasks.add_task(pipeline_mgr._ensure_web_video, base_stem)
+
     for out_dir in search_dirs:
         path = out_dir / filename
         if path.exists():
             return stream_video(path, request)
+
     if "_annotated_web.mp4" in filename:
         raw_name = filename.replace("_annotated_web.mp4", "_annotated.mp4")
         for out_dir in search_dirs:
             raw_cand = out_dir / raw_name
             if raw_cand.exists():
+                base_stem = filename.replace("_annotated_web.mp4", "")
+                background_tasks.add_task(pipeline_mgr._ensure_web_video, base_stem)
                 return stream_video(raw_cand, request)
     raise HTTPException(status_code=404, detail="Output video not found")
 

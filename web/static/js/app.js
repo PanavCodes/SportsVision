@@ -876,10 +876,44 @@ async function checkCurrentPipelineStatus() {
   }
 }
 
+let webVideoPollTimer = null;
+
+function pollForWebVideo(videoStem) {
+  if (webVideoPollTimer) clearTimeout(webVideoPollTimer);
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  const check = async () => {
+    try {
+      attempts++;
+      const res = await fetch(`/api/results/${encodeURIComponent(videoStem)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.is_web_optimized && data.annotated_video) {
+          const currentSrc = elements.annotatedVideoPlayer.getAttribute('data-loaded-file');
+          if (currentSrc !== data.annotated_video) {
+            elements.annotatedVideoPlayer.setAttribute('data-loaded-file', data.annotated_video);
+            elements.annotatedVideoPlayer.src = `/api/video/output/${encodeURIComponent(data.annotated_video)}`;
+            elements.annotatedVideoPlayer.load();
+            showToast('info', 'Web video optimization complete! Player loaded with H.264 stream.');
+          }
+          return;
+        }
+      }
+      if (attempts < maxAttempts) {
+        webVideoPollTimer = setTimeout(check, 3500);
+      }
+    } catch (e) {
+      console.warn('Web video poll error:', e);
+    }
+  };
+  webVideoPollTimer = setTimeout(check, 3000);
+}
+
 // ========================== Results Display ==========================
 async function fetchAndDisplayResults(videoStem) {
   try {
-    const res = await fetch(`/api/results/${videoStem}`);
+    const res = await fetch(`/api/results/${encodeURIComponent(videoStem)}`);
     const results = await res.json();
     currentResults = results;
     detectedSport = results.sport || "unknown";
@@ -887,14 +921,20 @@ async function fetchAndDisplayResults(videoStem) {
 
     // Load annotated video
     if (results.annotated_video) {
-      elements.annotatedVideoPlayer.src = `/api/video/output/${results.annotated_video}`;
+      elements.annotatedVideoPlayer.setAttribute('data-loaded-file', results.annotated_video);
+      elements.annotatedVideoPlayer.src = `/api/video/output/${encodeURIComponent(results.annotated_video)}`;
       elements.annotatedVideoPlayer.load();
     }
 
     // Load highlights video
     if (results.highlights_video) {
-      elements.highlightsVideoPlayer.src = `/api/video/output/${results.highlights_video}`;
+      elements.highlightsVideoPlayer.src = `/api/video/output/${encodeURIComponent(results.highlights_video)}`;
       elements.highlightsVideoPlayer.load();
+    }
+
+    // If video is still transcoding to browser-friendly H.264, poll until ready
+    if (!results.is_web_optimized) {
+      pollForWebVideo(videoStem);
     }
 
     // Render sport-specific content
