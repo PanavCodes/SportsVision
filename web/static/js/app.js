@@ -737,7 +737,7 @@ function startLogStreaming() {
 
   eventSource = new EventSource('/api/stream-logs');
 
-  eventSource.onmessage = (e) => {
+  eventSource.onmessage = async (e) => {
     try {
       const data = JSON.parse(e.data);
 
@@ -1421,7 +1421,7 @@ function initVideoSync() {
   vAnn.addEventListener('timeupdate', () => {
     const cur = formatVideoTime(vAnn.currentTime || vRaw.currentTime || 0);
     const dur = formatVideoTime(vAnn.duration || vRaw.duration || 0);
-    elements.syncTimeDisplay.textContent = ${cur} / ;
+    elements.syncTimeDisplay.textContent = `${cur} / ${dur}`;
   });
 
   elements.playbackSpeedSelect.addEventListener('change', (e) => {
