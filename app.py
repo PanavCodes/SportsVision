@@ -1120,7 +1120,14 @@ if STATIC_DIR.exists():
 async def root():
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
-        return FileResponse(index_file)
+        return FileResponse(
+            index_file,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
     return HTMLResponse("<h1>SportsVision Frontend Loading...</h1>")
 
 if __name__ == "__main__":

@@ -1361,8 +1361,28 @@ function initVideoSync() {
   const vRaw = elements.rawVideoPlayer;
   const vAnn = elements.annotatedVideoPlayer;
 
-  // Keep AI video muted to comply with browser autoplay policies & prevent audio contention
+  // Keep both videos muted by default to comply with browser autoplay policies
   vAnn.muted = true;
+  vRaw.muted = true;
+
+  let isSyncSeeking = false;
+
+  // Helper to safely seek follower without recursive echoes
+  function syncSeek(source, target) {
+    if (isSyncSeeking || !source.duration || !target.duration) return;
+    const targetTime = (source.currentTime / source.duration) * target.duration;
+    if (Math.abs(target.currentTime - targetTime) < 0.25) return;
+
+    isSyncSeeking = true;
+    target.currentTime = targetTime;
+
+    const onSeeked = () => {
+      target.removeEventListener('seeked', onSeeked);
+      setTimeout(() => { isSyncSeeking = false; }, 150);
+    };
+    target.addEventListener('seeked', onSeeked);
+    setTimeout(() => { isSyncSeeking = false; }, 600); // Safety fallback
+  }
 
   // Master Synchronized Play / Pause Button
   elements.btnPlayPauseSync.addEventListener('click', () => {
@@ -1377,83 +1397,79 @@ function initVideoSync() {
     }
   });
 
-  // Bidirectional Native Controls Synchronization (Play / Pause)
+  // Native Controls Play / Pause Synchronization
   vRaw.addEventListener('play', () => {
-    if (vAnn.paused && vAnn.src) {
-      vAnn.play().catch(e => console.log('vAnn sync play:', e));
-    }
+    if (vAnn.paused && vAnn.src) vAnn.play().catch(e => console.log('vAnn sync play:', e));
     if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '⏸ Pause Synchronized';
   });
 
   vRaw.addEventListener('pause', () => {
-    if (!vAnn.paused) {
-      vAnn.pause();
-    }
+    if (!vAnn.paused) vAnn.pause();
     if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '▶ Play Synchronized';
   });
 
   vAnn.addEventListener('play', () => {
-    if (vRaw.paused && vRaw.src) {
-      vRaw.play().catch(e => console.log('vRaw sync play:', e));
-    }
+    if (vRaw.paused && vRaw.src) vRaw.play().catch(e => console.log('vRaw sync play:', e));
     if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '⏸ Pause Synchronized';
   });
 
   vAnn.addEventListener('pause', () => {
-    if (!vRaw.paused) {
-      vRaw.pause();
-    }
+    if (!vRaw.paused) vRaw.pause();
     if (elements.syncPlayIcon) elements.syncPlayIcon.textContent = '▶ Play Synchronized';
   });
 
+  // Manual Step / Scrub Buttons
   if (elements.btnSyncRewind) {
     elements.btnSyncRewind.addEventListener('click', () => {
-      const targetTime = Math.max(0, (vRaw.currentTime || vAnn.currentTime || 0) - 5);
-      vAnn.currentTime = targetTime;
-      vRaw.currentTime = targetTime;
+      const targetRaw = Math.max(0, (vRaw.currentTime || 0) - 5);
+      vRaw.currentTime = targetRaw;
+      syncSeek(vRaw, vAnn);
     });
   }
 
   if (elements.btnSyncForward) {
     elements.btnSyncForward.addEventListener('click', () => {
-      const targetTime = (vRaw.currentTime || vAnn.currentTime || 0) + 5;
-      vAnn.currentTime = targetTime;
-      vRaw.currentTime = targetTime;
+      const targetRaw = Math.min(vRaw.duration || Infinity, (vRaw.currentTime || 0) + 5);
+      vRaw.currentTime = targetRaw;
+      syncSeek(vRaw, vAnn);
     });
   }
 
-  // Seeking Sync (Left player seeks -> Right player mirrors)
+  // Only sync seeking when a video is explicitly scrubbed/sought by user while not playing
   vRaw.addEventListener('seeking', () => {
-    if (!isSyncingVideos && vAnn.src) {
-      isSyncingVideos = true;
-      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
-        vAnn.currentTime = (vRaw.currentTime / vRaw.duration) * vAnn.duration;
-      } else {
-        vAnn.currentTime = vRaw.currentTime;
-      }
-      setTimeout(() => { isSyncingVideos = false; }, 80);
+    if (!isSyncSeeking && (vRaw.paused || vAnn.paused)) {
+      syncSeek(vRaw, vAnn);
     }
   });
 
-  // Seeking Sync (Right player seeks -> Left player mirrors)
   vAnn.addEventListener('seeking', () => {
-    if (!isSyncingVideos && vRaw.src) {
-      isSyncingVideos = true;
-      if (vAnn.duration && vRaw.duration && Math.abs(vAnn.duration - vRaw.duration) > 1.5) {
-        vRaw.currentTime = (vAnn.currentTime / vAnn.duration) * vRaw.duration;
-      } else {
-        vRaw.currentTime = vAnn.currentTime;
-      }
-      setTimeout(() => { isSyncingVideos = false; }, 80);
+    if (!isSyncSeeking && (vRaw.paused || vAnn.paused)) {
+      syncSeek(vAnn, vRaw);
     }
   });
 
-  // Prevent drift during active synchronized playback
+  // Professional Drift Correction during Active Playback:
+  // Instead of setting currentTime (which breaks the H.264 decoder and forces it back to previous keyframes),
+  // dynamically adjust playbackRate by +/- 5-8% to smoothly keep both feeds perfectly aligned without any stutter or rewind.
   vRaw.addEventListener('timeupdate', () => {
-    if (!isSyncingVideos && !vRaw.paused && !vAnn.paused && vAnn.duration && vRaw.duration) {
-      const drift = Math.abs(vRaw.currentTime - vAnn.currentTime);
-      if (drift > 0.5) {
-        vAnn.currentTime = vRaw.currentTime;
+    if (!vRaw.paused && !vAnn.paused && vAnn.duration && vRaw.duration) {
+      const progressRaw = vRaw.currentTime / vRaw.duration;
+      const progressAnn = vAnn.currentTime / vAnn.duration;
+      const driftSec = (progressRaw - progressAnn) * vAnn.duration;
+      const baseSpeed = parseFloat(elements.playbackSpeedSelect.value) || 1.0;
+
+      if (driftSec > 0.4) {
+        // vRaw is slightly ahead -> nudge vAnn faster to catch up
+        vAnn.playbackRate = baseSpeed * 1.06;
+        vRaw.playbackRate = baseSpeed;
+      } else if (driftSec < -0.4) {
+        // vAnn is slightly ahead -> slow vAnn down slightly
+        vAnn.playbackRate = baseSpeed * 0.94;
+        vRaw.playbackRate = baseSpeed;
+      } else {
+        // Aligned within threshold
+        vAnn.playbackRate = baseSpeed;
+        vRaw.playbackRate = baseSpeed;
       }
     }
   });
